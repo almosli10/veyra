@@ -102,26 +102,77 @@ export default function AdminDashboard() {
     setLoading(false)
   }
 
-  async function handleApprove(req: PlaceRequest) {
+ async function handleApprove(req: PlaceRequest) {
+  try {
     const slug = req.name.replace(/\s+/g, '-').toLowerCase() + '-' + req.id
-    const { error } = await supabase.from('places').insert({
-      name: req.name, name_ku: req.name_ku, slug,
-      category_id: req.category_id, description: req.description,
-      address: req.address, phone: req.phone, whatsapp: req.whatsapp,
-      opening_hours: req.opening_hours, image: req.image,
-      latitude: req.latitude, longitude: req.longitude,
-      featured: false, rating: 0, reviews_count: 0,
-    })
-    if (!error) {
-      await supabase.from('place_requests').update({ status: 'approved' }).eq('id', req.id)
-      fetchRequests()
-    }
-  }
 
-  async function handleReject(id: number) {
-    await supabase.from('place_requests').update({ status: 'rejected' }).eq('id', id)
+    const { error: insertError } = await supabase
+      .from('places')
+      .insert({
+        name: req.name,
+        name_ku: req.name_ku,
+        slug,
+        category_id: req.category_id,
+        description: req.description,
+        address: req.address,
+        phone: req.phone,
+        whatsapp: req.whatsapp,
+        opening_hours: req.opening_hours,
+        image: req.image,
+        latitude: req.latitude,
+        longitude: req.longitude,
+        featured: false,
+       rating: 0,
+reviews_count: 0,
+})
+
+    if (insertError) {
+      console.error('Insert Error:', insertError)
+      alert(`فشل نشر المكان: ${insertError.message}`)
+      return
+    }
+
+    const { error: updateError } = await supabase
+      .from('place_requests')
+      .update({ status: 'approved' })
+      .eq('id', req.id)
+
+    if (updateError) {
+      console.error('Update Error:', updateError)
+      alert(`تم نشر المكان لكن فشل تحديث الطلب: ${updateError.message}`)
+      return
+    }
+
+    alert('تم قبول ونشر المكان بنجاح ✅')
     fetchRequests()
+
+  } catch (err) {
+    console.error(err)
+    alert('حدث خطأ غير متوقع')
   }
+}
+
+async function handleReject(id: number) {
+  try {
+    const { error } = await supabase
+      .from('place_requests')
+      .update({ status: 'rejected' })
+      .eq('id', id)
+
+    if (error) {
+      console.error('Reject Error:', error)
+      alert(`فشل رفض الطلب: ${error.message}`)
+      return
+    }
+
+    alert('تم رفض الطلب ❌')
+    fetchRequests()
+
+  } catch (err) {
+    console.error(err)
+    alert('حدث خطأ غير متوقع')
+  }
+}
 
   async function handleDeletePlace(id: number) {
     await supabase.from('reviews').delete().eq('place_id', id)
