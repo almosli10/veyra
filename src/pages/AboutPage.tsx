@@ -1,6 +1,27 @@
 import { Link } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { supabase } from '../lib/supabase'
 
 export default function AboutPage() {
+    const [placesCount, setPlacesCount] = useState(0)
+  const [categoriesCount, setCategoriesCount] = useState(0)
+
+  useEffect(() => {
+    fetchStats()
+  }, [])
+
+  async function fetchStats() {
+    const { count: places } = await supabase
+      .from('places')
+      .select('*', { count: 'exact', head: true })
+
+    const { count: categories } = await supabase
+      .from('categories')
+      .select('*', { count: 'exact', head: true })
+
+    setPlacesCount(places || 0)
+    setCategoriesCount(categories || 0)
+  }
   return (
     <div style={{ background: '#080C1A', minHeight: '100vh' }}>
       <style>{`
@@ -54,7 +75,12 @@ export default function AboutPage() {
 
         {/* الإحصائيات */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 16, marginBottom: 24, animation: 'slideUp 0.6s 0.3s ease both', opacity: 0 }}>
-          {[['7+', 'مكان مميز', '📍', '#7C4DFF'], ['8', 'فئات', '🗂️', '#00E5FF'], ['أقرة', 'مدينتنا', '🏙️', '#a78bfa'], ['2025', 'سنة التأسيس', '📅', '#34d399']].map(([num, label, icon, color]) => (
+{[
+  [`${placesCount}+`, 'مكان مميز', '📍', '#7C4DFF'],
+  [String(categoriesCount), 'فئات', '🗂️', '#00E5FF'],
+  ['أقرة', 'مدينتنا', '🏙️', '#a78bfa'],
+  ['2025', 'سنة التأسيس', '📅', '#34d399']
+].map(([num, label, icon, color]) => (
             <div key={label} className="glass stat-card" style={{ borderRadius: 20, padding: '24px 16px', textAlign: 'center', border: `1px solid ${color}30` }}>
               <div style={{ fontSize: 28, marginBottom: 8 }}>{icon}</div>
               <p style={{ color, fontSize: 26, fontWeight: 900, margin: '0 0 4px' }}>{num}</p>
