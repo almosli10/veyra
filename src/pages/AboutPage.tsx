@@ -18,6 +18,8 @@ export default function AboutPage() {
     const { count: categories } = await supabase
       .from('categories')
       .select('*', { count: 'exact', head: true })
+    console.log('Places Count:', places)
+    console.log('Categories Count:', categories)
 
     setPlacesCount(places || 0)
     setCategoriesCount(categories || 0)
@@ -79,7 +81,7 @@ export default function AboutPage() {
   [`${placesCount}+`, 'مكان مميز', '📍', '#7C4DFF'],
   [String(categoriesCount), 'فئات', '🗂️', '#00E5FF'],
   ['أقرة', 'مدينتنا', '🏙️', '#a78bfa'],
-  ['2025', 'سنة التأسيس', '📅', '#34d399']
+  ['16/6/2026', 'تاريخ التأسيس', '📅', '#34d399']
 ].map(([num, label, icon, color]) => (
             <div key={label} className="glass stat-card" style={{ borderRadius: 20, padding: '24px 16px', textAlign: 'center', border: `1px solid ${color}30` }}>
               <div style={{ fontSize: 28, marginBottom: 8 }}>{icon}</div>
