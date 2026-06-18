@@ -2,7 +2,36 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
+import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet'
+import L from 'leaflet'
+import 'leaflet/dist/leaflet.css'
+
 interface Category { id: number; name: string; icon: string }
+
+const markerIcon = new L.Icon({
+  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+})
+
+function LocationPicker({
+  setForm,
+}: {
+  setForm: React.Dispatch<React.SetStateAction<any>>
+}) {
+  useMapEvents({
+    click(e) {
+      setForm((prev: any) => ({
+        ...prev,
+        latitude: e.latlng.lat.toFixed(6),
+        longitude: e.latlng.lng.toFixed(6),
+      }))
+    },
+  })
+
+  return null
+}
 
 export default function AddPlacePage() {
   const navigate = useNavigate()
@@ -23,10 +52,24 @@ export default function AddPlacePage() {
       if (!session) navigate('/login')
       else setUser(session.user)
     })
-    supabase.from('categories').select('*').then(({ data }) => { if (data) setCategories(data) })
+    supabase.from('categories').select('*').then(({ data }) => {
+      if (data) setCategories(data)
+    })
   }, [])
 
-  function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) {
+  const getCurrentLocation = () => {
+  navigator.geolocation.getCurrentPosition((position) => {
+    setForm((prev) => ({
+      ...prev,
+      latitude: position.coords.latitude.toFixed(6),
+      longitude: position.coords.longitude.toFixed(6),
+    }))
+  })
+}
+
+  function handleChange(
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
+  ) {
     setForm({ ...form, [e.target.name]: e.target.value })
   }
 
@@ -198,6 +241,20 @@ export default function AddPlacePage() {
                 <input name="longitude" value={form.longitude} onChange={handleChange} placeholder="43.8927" className="form-input" />
               </div>
             </div>
+
+            <button
+  type="button"
+  onClick={getCurrentLocation}
+  className="form-input"
+  style={{
+    background: 'linear-gradient(135deg,#7C4DFF,#00E5FF)',
+    color: 'white',
+    fontWeight: 700,
+    cursor: 'pointer'
+  }}
+>
+  📍 استخدام موقعي الحالي
+</button>
 
             {/* تلميح الإحداثيات */}
             <div style={{ background: 'rgba(0,229,255,0.07)', border: '1px solid rgba(0,229,255,0.2)', borderRadius: 14, padding: '14px 16px', fontSize: 13, color: 'rgba(0,229,255,0.8)', display: 'flex', alignItems: 'flex-start', gap: 10 }}>
