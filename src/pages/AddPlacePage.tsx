@@ -1,35 +1,26 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-
 import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet'
-import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
+import L from 'leaflet'
+
+delete (L.Icon.Default.prototype as any)._getIconUrl
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+})
 
 interface Category { id: number; name: string; icon: string }
 
-const markerIcon = new L.Icon({
-  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-})
-
-function LocationPicker({
-  setForm,
-}: {
-  setForm: React.Dispatch<React.SetStateAction<any>>
-}) {
+// مكون للنقر على الخريطة
+function MapClickHandler({ onLocationSelect }: { onLocationSelect: (lat: number, lng: number) => void }) {
   useMapEvents({
     click(e) {
-      setForm((prev: any) => ({
-        ...prev,
-        latitude: e.latlng.lat.toFixed(6),
-        longitude: e.latlng.lng.toFixed(6),
-      }))
+      onLocationSelect(e.latlng.lat, e.latlng.lng)
     },
   })
-
   return null
 }
 
@@ -41,36 +32,33 @@ export default function AddPlacePage() {
   const [uploading, setUploading] = useState(false)
   const [success, setSuccess] = useState(false)
   const [imagePreview, setImagePreview] = useState('')
+  const [markerPos, setMarkerPos] = useState<[number, number] | null>(null)
   const [form, setForm] = useState({
     name: '', name_ku: '', category_id: '', description: '',
     address: '', phone: '', whatsapp: '', website: '',
     opening_hours: '', image: '', latitude: '', longitude: '',
   })
 
+  // إحداثيات أقرة كنقطة بداية
+  const AKRE_CENTER: [number, number] = [36.7477, 43.8927]
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) navigate('/login')
       else setUser(session.user)
     })
-    supabase.from('categories').select('*').then(({ data }) => {
-      if (data) setCategories(data)
-    })
+    supabase.from('categories').select('*').then(({ data }) => { if (data) setCategories(data) })
   }, [])
 
-  const getCurrentLocation = () => {
-  navigator.geolocation.getCurrentPosition((position) => {
-    setForm((prev) => ({
-      ...prev,
-      latitude: position.coords.latitude.toFixed(6),
-      longitude: position.coords.longitude.toFixed(6),
-    }))
-  })
-}
-
-  function handleChange(
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
-  ) {
+  function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) {
     setForm({ ...form, [e.target.name]: e.target.value })
+  }
+
+  function handleLocationSelect(lat: number, lng: number) {
+    const roundedLat = Math.round(lat * 10000) / 10000
+    const roundedLng = Math.round(lng * 10000) / 10000
+    setMarkerPos([lat, lng])
+    setForm(prev => ({ ...prev, latitude: String(roundedLat), longitude: String(roundedLng) }))
   }
 
   async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -80,7 +68,7 @@ export default function AddPlacePage() {
     const { data, error } = await supabase.storage.from('places').upload(fileName, file)
     if (!error && data) {
       const { data: urlData } = supabase.storage.from('places').getPublicUrl(fileName)
-      setForm({ ...form, image: urlData.publicUrl })
+      setForm(prev => ({ ...prev, image: urlData.publicUrl }))
       setImagePreview(urlData.publicUrl)
     }
     setUploading(false)
@@ -103,7 +91,7 @@ export default function AddPlacePage() {
 
   if (success) return (
     <div style={{ background: '#080C1A', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-      <div style={{ background: 'rgba(255,255,255,0.05)', backdropFilter: 'blur(24px)', border: '1px solid rgba(124,77,255,0.3)', borderRadius: 28, padding: '48px 40px', textAlign: 'center', maxWidth: 420, width: '100%', boxShadow: '0 0 60px rgba(124,77,255,0.15)' }}>
+      <div style={{ background: 'rgba(255,255,255,0.05)', backdropFilter: 'blur(24px)', border: '1px solid rgba(124,77,255,0.3)', borderRadius: 28, padding: '48px 40px', textAlign: 'center', maxWidth: 420, width: '100%' }}>
         <p style={{ fontSize: 56, marginBottom: 16 }}>🎉</p>
         <h2 style={{ color: 'white', fontSize: 22, fontWeight: 800, marginBottom: 10 }}>تم إرسال طلبك بنجاح!</h2>
         <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 14, lineHeight: 1.7, marginBottom: 28 }}>سيتم مراجعة طلبك من قبل الإدارة ونشره قريباً</p>
@@ -120,16 +108,13 @@ export default function AddPlacePage() {
         @keyframes slideUp { from{opacity:0;transform:translateY(30px)} to{opacity:1;transform:translateY(0)} }
         .glass { background:rgba(255,255,255,0.04); backdrop-filter:blur(24px); border:1px solid rgba(255,255,255,0.08); }
         .neon-border { border:1px solid rgba(124,77,255,0.3) !important; }
-        .form-input {
-          width:100%; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1);
-          border-radius:14px; padding:12px 16px; color:white; font-size:13px;
-          outline:none; transition:all 0.2s ease; box-sizing:border-box;
-        }
+        .form-input { width:100%; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:14px; padding:12px 16px; color:white; font-size:13px; outline:none; transition:all 0.2s ease; box-sizing:border-box; }
         .form-input:focus { border-color:rgba(124,77,255,0.5); box-shadow:0 0 0 3px rgba(124,77,255,0.15); }
         .form-input::placeholder { color:rgba(255,255,255,0.25); }
         .form-label { color:rgba(255,255,255,0.6); font-size:12px; font-weight:600; display:block; margin-bottom:8px; letter-spacing:0.5px; }
         select.form-input option { background:#1a0533; color:white; }
         textarea.form-input { resize:none; }
+        .leaflet-container { border-radius: 0; cursor: crosshair !important; }
       `}</style>
 
       <div style={{ maxWidth: 680, margin: '0 auto' }}>
@@ -191,7 +176,7 @@ export default function AddPlacePage() {
               </div>
             </div>
 
-            {/* الموقع الإلكتروني وساعات العمل */}
+            {/* الموقع وساعات العمل */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
               <div>
                 <label className="form-label">الموقع الإلكتروني</label>
@@ -206,13 +191,11 @@ export default function AddPlacePage() {
             {/* رفع الصورة */}
             <div>
               <label className="form-label">صورة المكان</label>
-              <div style={{ border: '2px dashed rgba(124,77,255,0.3)', borderRadius: 18, padding: '28px 20px', textAlign: 'center', transition: 'border-color 0.2s', background: 'rgba(124,77,255,0.05)' }}
-                onMouseEnter={e => (e.currentTarget.style.borderColor = 'rgba(124,77,255,0.6)')}
-                onMouseLeave={e => (e.currentTarget.style.borderColor = 'rgba(124,77,255,0.3)')}>
+              <div style={{ border: '2px dashed rgba(124,77,255,0.3)', borderRadius: 18, padding: '28px 20px', textAlign: 'center', background: 'rgba(124,77,255,0.05)' }}>
                 {imagePreview ? (
                   <div>
                     <img src={imagePreview} alt="preview" style={{ width: '100%', height: 200, objectFit: 'cover', borderRadius: 14, marginBottom: 12 }} />
-                    <button type="button" onClick={() => { setImagePreview(''); setForm({ ...form, image: '' }) }}
+                    <button type="button" onClick={() => { setImagePreview(''); setForm(prev => ({ ...prev, image: '' })) }}
                       style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171', borderRadius: 10, padding: '6px 16px', fontSize: 12, cursor: 'pointer' }}>
                       حذف الصورة
                     </button>
@@ -230,36 +213,51 @@ export default function AddPlacePage() {
               </div>
             </div>
 
-            {/* الإحداثيات */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-              <div>
-                <label className="form-label">خط العرض (Latitude)</label>
-                <input name="latitude" value={form.latitude} onChange={handleChange} placeholder="36.7477" className="form-input" />
+            {/* الخريطة التفاعلية */}
+            <div>
+              <label className="form-label">📍 حدد موقع مكانك على الخريطة</label>
+              <div style={{ background: 'rgba(0,229,255,0.07)', border: '1px solid rgba(0,229,255,0.2)', borderRadius: 12, padding: '10px 14px', fontSize: 12, color: 'rgba(0,229,255,0.8)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span>💡</span>
+                <span>اضغط على الخريطة لتحديد موقع مكانك — ستتعبأ الإحداثيات تلقائياً</span>
               </div>
-              <div>
-                <label className="form-label">خط الطول (Longitude)</label>
-                <input name="longitude" value={form.longitude} onChange={handleChange} placeholder="43.8927" className="form-input" />
+
+              <div style={{ borderRadius: 18, overflow: 'hidden', border: '2px solid rgba(124,77,255,0.3)', height: 320 }}>
+                <MapContainer
+                  center={markerPos || AKRE_CENTER}
+                  zoom={14}
+                  style={{ height: '100%', width: '100%' }}
+                  scrollWheelZoom={true}
+                >
+                  <TileLayer
+                    attribution='&copy; OpenStreetMap'
+                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                  />
+                  <MapClickHandler onLocationSelect={handleLocationSelect} />
+                  {markerPos && <Marker position={markerPos} />}
+                </MapContainer>
               </div>
-            </div>
 
-            <button
-  type="button"
-  onClick={getCurrentLocation}
-  className="form-input"
-  style={{
-    background: 'linear-gradient(135deg,#7C4DFF,#00E5FF)',
-    color: 'white',
-    fontWeight: 700,
-    cursor: 'pointer'
-  }}
->
-  📍 استخدام موقعي الحالي
-</button>
-
-            {/* تلميح الإحداثيات */}
-            <div style={{ background: 'rgba(0,229,255,0.07)', border: '1px solid rgba(0,229,255,0.2)', borderRadius: 14, padding: '14px 16px', fontSize: 13, color: 'rgba(0,229,255,0.8)', display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-              <span style={{ fontSize: 16, flexShrink: 0 }}>💡</span>
-              <span>للحصول على إحداثيات مكانك — افتح Google Maps، ابحث عن موقعك، انقر عليه بزر الأيمن وستظهر الإحداثيات</span>
+              {/* عرض الإحداثيات */}
+              {markerPos ? (
+                <div style={{ display: 'flex', gap: 12, marginTop: 12 }}>
+                  <div style={{ flex: 1, background: 'rgba(52,211,153,0.1)', border: '1px solid rgba(52,211,153,0.3)', borderRadius: 12, padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11 }}>خط العرض</span>
+                    <span style={{ color: '#34d399', fontSize: 13, fontWeight: 700 }}>{form.latitude}</span>
+                  </div>
+                  <div style={{ flex: 1, background: 'rgba(52,211,153,0.1)', border: '1px solid rgba(52,211,153,0.3)', borderRadius: 12, padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11 }}>خط الطول</span>
+                    <span style={{ color: '#34d399', fontSize: 13, fontWeight: 700 }}>{form.longitude}</span>
+                  </div>
+                  <button type="button" onClick={() => { setMarkerPos(null); setForm(prev => ({ ...prev, latitude: '', longitude: '' })) }}
+                    style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#f87171', borderRadius: 12, padding: '10px 14px', fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                    ✕ مسح
+                  </button>
+                </div>
+              ) : (
+                <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 12, marginTop: 10, textAlign: 'center' }}>
+                  لم يتم تحديد الموقع بعد — اضغط على الخريطة
+                </p>
+              )}
             </div>
 
             <button type="submit" disabled={loading || uploading}
