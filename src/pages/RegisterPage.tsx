@@ -24,7 +24,8 @@ export default function RegisterPage() {
     if (error) {
       setError('حدث خطأ، حاول مرة أخرى')
     } else {
-      navigate('/')
+      alert('✅ تم إنشاء الحساب! تحقق من بريدك الإلكتروني وأكّد حسابك ثم سجّل الدخول')
+      navigate('/login')
     }
     setLoading(false)
   }

@@ -33,6 +33,8 @@ export default function AddPlacePage() {
   const [success, setSuccess] = useState(false)
   const [imagePreview, setImagePreview] = useState('')
   const [markerPos, setMarkerPos] = useState<[number, number] | null>(null)
+  const [locating, setLocating] = useState(false) // ✅ جديد: حالة تحديد الموقع
+  const [locationError, setLocationError] = useState('') // ✅ جديد: رسالة الخطأ
   const [form, setForm] = useState({
     name: '', name_ku: '', category_id: '', description: '',
     address: '', phone: '', whatsapp: '', website: '',
@@ -59,6 +61,60 @@ export default function AddPlacePage() {
     const roundedLng = Math.round(lng * 10000) / 10000
     setMarkerPos([lat, lng])
     setForm(prev => ({ ...prev, latitude: String(roundedLat), longitude: String(roundedLng) }))
+    setLocationError('') // مسح أي خطأ سابق
+  }
+
+  // ✅ ✅ ✅ دالة جديدة: تحديد الموقع الحالي باستخدام GPS
+  function getCurrentLocation() {
+    // التحقق من دعم المتصفح لـ Geolocation
+    if (!navigator.geolocation) {
+      setLocationError('❌ متصفحك لا يدعم خاصية تحديد الموقع')
+      return
+    }
+
+    setLocating(true)
+    setLocationError('')
+
+    navigator.geolocation.getCurrentPosition(
+      // ✅ نجاح تحديد الموقع
+      (position) => {
+        const { latitude, longitude } = position.coords
+        handleLocationSelect(latitude, longitude)
+        setLocating(false)
+        
+        // إظهار رسالة نجاح مؤقتة
+        setLocationError('✅ تم تحديد موقعك بنجاح!')
+        setTimeout(() => setLocationError(''), 3000)
+      },
+      // ❌ فشل تحديد الموقع
+      (error) => {
+        setLocating(false)
+        let message = '❌ فشل تحديد الموقع: '
+        switch(error.code) {
+          case error.PERMISSION_DENIED:
+            message += 'الرجاء السماح بتحديد الموقع في المتصفح'
+            break
+          case error.POSITION_UNAVAILABLE:
+            message += 'معلومات الموقع غير متوفرة حالياً'
+            break
+          case error.TIMEOUT:
+            message += 'انتهى وقت محاولة تحديد الموقع'
+            break
+          default:
+            message += error.message
+        }
+        setLocationError(message)
+        
+        // مسح الرسالة بعد 5 ثواني
+        setTimeout(() => setLocationError(''), 5000)
+      },
+      // خيارات تحديد الموقع
+      {
+        enableHighAccuracy: true, // دقة عالية (استخدام GPS)
+        timeout: 10000, // 10 ثواني كحد أقصى
+        maximumAge: 0 // عدم استخدام موقع مخبأ
+      }
+    )
   }
 
   async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -106,6 +162,7 @@ export default function AddPlacePage() {
     <div style={{ background: '#080C1A', minHeight: '100vh', padding: '40px 16px 60px' }}>
       <style>{`
         @keyframes slideUp { from{opacity:0;transform:translateY(30px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
         .glass { background:rgba(255,255,255,0.04); backdrop-filter:blur(24px); border:1px solid rgba(255,255,255,0.08); }
         .neon-border { border:1px solid rgba(124,77,255,0.3) !important; }
         .form-input { width:100%; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:14px; padding:12px 16px; color:white; font-size:13px; outline:none; transition:all 0.2s ease; box-sizing:border-box; }
@@ -115,6 +172,7 @@ export default function AddPlacePage() {
         select.form-input option { background:#1a0533; color:white; }
         textarea.form-input { resize:none; }
         .leaflet-container { border-radius: 0; cursor: crosshair !important; }
+        .location-btn { animation: pulse 1.5s ease-in-out infinite; }
       `}</style>
 
       <div style={{ maxWidth: 680, margin: '0 auto' }}>
@@ -213,15 +271,77 @@ export default function AddPlacePage() {
               </div>
             </div>
 
-            {/* الخريطة التفاعلية */}
+            {/* ✅ ✅ ✅ الخريطة مع زر تحديد الموقع الحالي */}
             <div>
-              <label className="form-label">📍 حدد موقع مكانك على الخريطة</label>
-              <div style={{ background: 'rgba(0,229,255,0.07)', border: '1px solid rgba(0,229,255,0.2)', borderRadius: 12, padding: '10px 14px', fontSize: 12, color: 'rgba(0,229,255,0.8)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span>💡</span>
-                <span>اضغط على الخريطة لتحديد موقع مكانك — ستتعبأ الإحداثيات تلقائياً</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <label className="form-label" style={{ marginBottom: 0 }}>📍 حدد موقع مكانك على الخريطة</label>
+                
+                {/* زر تحديد الموقع الحالي */}
+                <button
+                  type="button"
+                  onClick={getCurrentLocation}
+                  disabled={locating}
+                  className="location-btn"
+                  style={{
+                    background: 'linear-gradient(135deg, #00E5FF, #7C4DFF)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: 12,
+                    padding: '8px 16px',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: locating ? 'not-allowed' : 'pointer',
+                    opacity: locating ? 0.6 : 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  {locating ? (
+                    <>
+                      <span>⏳</span> جارٍ التحديد...
+                    </>
+                  ) : (
+                    <>
+                      <span>📍</span> موقعي الحالي
+                    </>
+                  )}
+                </button>
               </div>
 
-              <div style={{ borderRadius: 18, overflow: 'hidden', border: '2px solid rgba(124,77,255,0.3)', height: 320 }}>
+              {/* رسالة الخطأ أو النجاح */}
+              {locationError && (
+                <div style={{
+                  background: locationError.includes('✅') 
+                    ? 'rgba(52,211,153,0.15)' 
+                    : 'rgba(239,68,68,0.15)',
+                  border: `1px solid ${
+                    locationError.includes('✅') 
+                      ? 'rgba(52,211,153,0.3)' 
+                      : 'rgba(239,68,68,0.3)'
+                  }`,
+                  borderRadius: 12,
+                  padding: '10px 14px',
+                  marginBottom: 12,
+                  color: locationError.includes('✅') ? '#34d399' : '#f87171',
+                  fontSize: 13,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8
+                }}>
+                  <span>{locationError.includes('✅') ? '✅' : '⚠️'}</span>
+                  <span>{locationError}</span>
+                </div>
+              )}
+
+              <div style={{ 
+                borderRadius: 18, 
+                overflow: 'hidden', 
+                border: '2px solid rgba(124,77,255,0.3)', 
+                height: 320,
+                position: 'relative'
+              }}>
                 <MapContainer
                   center={markerPos || AKRE_CENTER}
                   zoom={14}
@@ -255,7 +375,7 @@ export default function AddPlacePage() {
                 </div>
               ) : (
                 <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 12, marginTop: 10, textAlign: 'center' }}>
-                  لم يتم تحديد الموقع بعد — اضغط على الخريطة
+                  لم يتم تحديد الموقع بعد — اضغط على الخريطة أو استخدم زر "موقعي الحالي"
                 </p>
               )}
             </div>
