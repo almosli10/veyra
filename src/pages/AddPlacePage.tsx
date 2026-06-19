@@ -33,8 +33,8 @@ export default function AddPlacePage() {
   const [success, setSuccess] = useState(false)
   const [imagePreview, setImagePreview] = useState('')
   const [markerPos, setMarkerPos] = useState<[number, number] | null>(null)
-  const [locating, setLocating] = useState(false) // ✅ جديد: حالة تحديد الموقع
-  const [locationError, setLocationError] = useState('') // ✅ جديد: رسالة الخطأ
+  const [showMapLinkInput, setShowMapLinkInput] = useState(false) // ✅ جديد: إظهار/إخفاء حقل الرابط
+  const [mapLink, setMapLink] = useState('') // ✅ جديد: تخزين رابط الموقع
   const [form, setForm] = useState({
     name: '', name_ku: '', category_id: '', description: '',
     address: '', phone: '', whatsapp: '', website: '',
@@ -61,60 +61,80 @@ export default function AddPlacePage() {
     const roundedLng = Math.round(lng * 10000) / 10000
     setMarkerPos([lat, lng])
     setForm(prev => ({ ...prev, latitude: String(roundedLat), longitude: String(roundedLng) }))
-    setLocationError('') // مسح أي خطأ سابق
+    setShowMapLinkInput(false) // إخفاء حقل الرابط عند تحديد موقع يدوياً
+    setMapLink('')
   }
 
-  // ✅ ✅ ✅ دالة جديدة: تحديد الموقع الحالي باستخدام GPS
-  function getCurrentLocation() {
-    // التحقق من دعم المتصفح لـ Geolocation
-    if (!navigator.geolocation) {
-      setLocationError('❌ متصفحك لا يدعم خاصية تحديد الموقع')
-      return
-    }
+  // ✅ ✅ ✅ دالة جديدة: استخراج الإحداثيات من رابط Google Maps
+  function extractCoordinatesFromLink(link: string) {
+    try {
+      // محاولة استخراج الإحداثيات من رابط Google Maps
+      // مثال: https://www.google.com/maps/place/36.7477,43.8927
+      // أو: https://www.google.com/maps/@36.7477,43.8927,15z
+      
+      let lat: number | null = null
+      let lng: number | null = null
 
-    setLocating(true)
-    setLocationError('')
-
-    navigator.geolocation.getCurrentPosition(
-      // ✅ نجاح تحديد الموقع
-      (position) => {
-        const { latitude, longitude } = position.coords
-        handleLocationSelect(latitude, longitude)
-        setLocating(false)
-        
-        // إظهار رسالة نجاح مؤقتة
-        setLocationError('✅ تم تحديد موقعك بنجاح!')
-        setTimeout(() => setLocationError(''), 3000)
-      },
-      // ❌ فشل تحديد الموقع
-      (error) => {
-        setLocating(false)
-        let message = '❌ فشل تحديد الموقع: '
-        switch(error.code) {
-          case error.PERMISSION_DENIED:
-            message += 'الرجاء السماح بتحديد الموقع في المتصفح'
-            break
-          case error.POSITION_UNAVAILABLE:
-            message += 'معلومات الموقع غير متوفرة حالياً'
-            break
-          case error.TIMEOUT:
-            message += 'انتهى وقت محاولة تحديد الموقع'
-            break
-          default:
-            message += error.message
-        }
-        setLocationError(message)
-        
-        // مسح الرسالة بعد 5 ثواني
-        setTimeout(() => setLocationError(''), 5000)
-      },
-      // خيارات تحديد الموقع
-      {
-        enableHighAccuracy: true, // دقة عالية (استخدام GPS)
-        timeout: 10000, // 10 ثواني كحد أقصى
-        maximumAge: 0 // عدم استخدام موقع مخبأ
+      // نمط 1: /place/36.7477,43.8927
+      const placeMatch = link.match(/\/place\/([0-9.]+),([0-9.]+)/)
+      if (placeMatch) {
+        lat = parseFloat(placeMatch[1])
+        lng = parseFloat(placeMatch[2])
       }
-    )
+
+      // نمط 2: /@36.7477,43.8927
+      const atMatch = link.match(/@([0-9.]+),([0-9.]+)/)
+      if (atMatch && !lat) {
+        lat = parseFloat(atMatch[1])
+        lng = parseFloat(atMatch[2])
+      }
+
+      // نمط 3: ?q=36.7477,43.8927
+      const qMatch = link.match(/[?&]q=([0-9.]+),([0-9.]+)/)
+      if (qMatch && !lat) {
+        lat = parseFloat(qMatch[1])
+        lng = parseFloat(qMatch[2])
+      }
+
+      // نمط 4: إحداثيات مباشرة مفصولة بفاصلة
+      const coordMatch = link.match(/([0-9.]+)\s*,\s*([0-9.]+)/)
+      if (coordMatch && !lat) {
+        lat = parseFloat(coordMatch[1])
+        lng = parseFloat(coordMatch[2])
+      }
+
+      if (lat && lng && !isNaN(lat) && !isNaN(lng)) {
+        // التحقق من أن الإحداثيات ضمن نطاق معقول
+        if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+          handleLocationSelect(lat, lng)
+          setShowMapLinkInput(false)
+          setMapLink('')
+          alert('✅ تم استخراج الموقع من الرابط بنجاح!')
+          return true
+        }
+      }
+      
+      alert('❌ لم نتمكن من استخراج الإحداثيات من هذا الرابط. تأكد من صحة الرابط.')
+      return false
+    } catch (error) {
+      alert('❌ حدث خطأ في قراءة الرابط. حاول مرة أخرى.')
+      return false
+    }
+  }
+
+  // ✅ ✅ ✅ دالة لفتح مربع إدخال الرابط
+  function handleMapLinkClick() {
+    setShowMapLinkInput(!showMapLinkInput)
+    setMapLink('')
+  }
+
+  // ✅ ✅ ✅ دالة معالجة الرابط
+  function handleMapLinkSubmit() {
+    if (mapLink.trim()) {
+      extractCoordinatesFromLink(mapLink)
+    } else {
+      alert('⚠️ الرجاء إدخال رابط الموقع')
+    }
   }
 
   async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -162,7 +182,6 @@ export default function AddPlacePage() {
     <div style={{ background: '#080C1A', minHeight: '100vh', padding: '40px 16px 60px' }}>
       <style>{`
         @keyframes slideUp { from{opacity:0;transform:translateY(30px)} to{opacity:1;transform:translateY(0)} }
-        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
         .glass { background:rgba(255,255,255,0.04); backdrop-filter:blur(24px); border:1px solid rgba(255,255,255,0.08); }
         .neon-border { border:1px solid rgba(124,77,255,0.3) !important; }
         .form-input { width:100%; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:14px; padding:12px 16px; color:white; font-size:13px; outline:none; transition:all 0.2s ease; box-sizing:border-box; }
@@ -172,7 +191,6 @@ export default function AddPlacePage() {
         select.form-input option { background:#1a0533; color:white; }
         textarea.form-input { resize:none; }
         .leaflet-container { border-radius: 0; cursor: crosshair !important; }
-        .location-btn { animation: pulse 1.5s ease-in-out infinite; }
       `}</style>
 
       <div style={{ maxWidth: 680, margin: '0 auto' }}>
@@ -271,67 +289,90 @@ export default function AddPlacePage() {
               </div>
             </div>
 
-            {/* ✅ ✅ ✅ الخريطة مع زر تحديد الموقع الحالي */}
+            {/* ✅ ✅ ✅ الخريطة مع زر "رابط الموقع" */}
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                 <label className="form-label" style={{ marginBottom: 0 }}>📍 حدد موقع مكانك على الخريطة</label>
                 
-                {/* زر تحديد الموقع الحالي */}
+                {/* ✅ زر جديد: رابط الموقع */}
                 <button
                   type="button"
-                  onClick={getCurrentLocation}
-                  disabled={locating}
-                  className="location-btn"
+                  onClick={handleMapLinkClick}
                   style={{
-                    background: 'linear-gradient(135deg, #00E5FF, #7C4DFF)',
+                    background: showMapLinkInput 
+                      ? 'rgba(239,68,68,0.2)' 
+                      : 'linear-gradient(135deg, #FF6B6B, #FF8E53)',
                     color: 'white',
                     border: 'none',
                     borderRadius: 12,
                     padding: '8px 16px',
                     fontSize: 12,
                     fontWeight: 700,
-                    cursor: locating ? 'not-allowed' : 'pointer',
-                    opacity: locating ? 0.6 : 1,
+                    cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
                     gap: 6,
                     transition: 'all 0.2s ease'
                   }}
                 >
-                  {locating ? (
-                    <>
-                      <span>⏳</span> جارٍ التحديد...
-                    </>
-                  ) : (
-                    <>
-                      <span>📍</span> موقعي الحالي
-                    </>
-                  )}
+                  {showMapLinkInput ? '✕ إلغاء' : '🔗 رابط الموقع'}
                 </button>
               </div>
 
-              {/* رسالة الخطأ أو النجاح */}
-              {locationError && (
+              {/* ✅ حقل إدخال الرابط (يظهر عند الضغط على الزر) */}
+              {showMapLinkInput && (
                 <div style={{
-                  background: locationError.includes('✅') 
-                    ? 'rgba(52,211,153,0.15)' 
-                    : 'rgba(239,68,68,0.15)',
-                  border: `1px solid ${
-                    locationError.includes('✅') 
-                      ? 'rgba(52,211,153,0.3)' 
-                      : 'rgba(239,68,68,0.3)'
-                  }`,
-                  borderRadius: 12,
-                  padding: '10px 14px',
-                  marginBottom: 12,
-                  color: locationError.includes('✅') ? '#34d399' : '#f87171',
-                  fontSize: 13,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8
+                  background: 'rgba(255,255,255,0.05)',
+                  border: '1px solid rgba(255,107,107,0.3)',
+                  borderRadius: 14,
+                  padding: '16px',
+                  marginBottom: 14
                 }}>
-                  <span>{locationError.includes('✅') ? '✅' : '⚠️'}</span>
-                  <span>{locationError}</span>
+                  <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                    <input
+                      type="text"
+                      value={mapLink}
+                      onChange={(e) => setMapLink(e.target.value)}
+                      placeholder="الصق رابط Google Maps هنا..."
+                      className="form-input"
+                      style={{ flex: 1 }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleMapLinkSubmit()
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleMapLinkSubmit}
+                      style={{
+                        background: 'linear-gradient(135deg, #FF6B6B, #FF8E53)',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: 12,
+                        padding: '10px 20px',
+                        fontSize: 13,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      استخراج 📍
+                    </button>
+                  </div>
+                  <div style={{
+                    marginTop: 8,
+                    fontSize: 11,
+                    color: 'rgba(255,255,255,0.3)',
+                    lineHeight: 1.6,
+                    direction: 'ltr'
+                  }}>
+                    💡 أدخل رابط Google Maps مثل:
+                    <br />
+                    <span style={{ color: 'rgba(255,255,255,0.5)' }}>
+                      https://www.google.com/maps/place/36.7477,43.8927
+                    </span>
+                    <br />
+                    أو انسخ الرابط من متصفحك عند فتح الموقع على الخريطة
+                  </div>
                 </div>
               )}
 
@@ -375,7 +416,7 @@ export default function AddPlacePage() {
                 </div>
               ) : (
                 <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 12, marginTop: 10, textAlign: 'center' }}>
-                  لم يتم تحديد الموقع بعد — اضغط على الخريطة أو استخدم زر "موقعي الحالي"
+                  لم يتم تحديد الموقع بعد — اضغط على الخريطة أو استخدم زر "رابط الموقع"
                 </p>
               )}
             </div>
