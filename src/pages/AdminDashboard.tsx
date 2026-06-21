@@ -119,7 +119,7 @@ export default function AdminDashboard() {
         name: req.name, name_ku: req.name_ku, slug, category_id: req.category_id,
         description: req.description, address: req.address, phone: req.phone,
         whatsapp: req.whatsapp, opening_hours: req.opening_hours, image: req.image,
-        latitude: req.latitude, longitude: req.longitude, featured: false, rating: 0, reviews_count: 0,
+        latitude: req.latitude, longitude: req.longitude, featured: false, rating: 0, reviews_count: 0, owner_id: req.owner_id,
       })
       if (insertError) { alert(`فشل نشر المكان: ${insertError.message}`); return }
       const { error: updateError } = await supabase.from('place_requests').update({ status: 'approved' }).eq('id', req.id)

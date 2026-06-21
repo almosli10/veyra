@@ -8,6 +8,12 @@ interface Place {
   categories?: { name: string; icon: string }
 }
 
+interface MyPlace {
+  id: number; name: string; slug: string; image: string
+  address: string; rating: number; status: string
+  categories?: { name: string; icon: string }
+}
+
 function TiltCard({ children, style = {} }: { children: React.ReactNode; style?: React.CSSProperties }) {
   const ref = useRef<HTMLDivElement>(null)
   function onMove(e: React.MouseEvent) {
@@ -27,9 +33,15 @@ function TiltCard({ children, style = {} }: { children: React.ReactNode; style?:
 export default function ProfilePage() {
   const navigate = useNavigate()
   const [user, setUser] = useState<any>(null)
+  const [profile, setProfile] = useState<any>(null)
   const [favorites, setFavorites] = useState<Place[]>([])
+  const [myPlaces, setMyPlaces] = useState<MyPlace[]>([])
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'favorites' | 'info'>('favorites')
+  const [activeTab, setActiveTab] = useState<'favorites' | 'myplaces' | 'info'>('favorites')
+  const [uploadingAvatar, setUploadingAvatar] = useState(false)
+  const [editingPlace, setEditingPlace] = useState<MyPlace | null>(null)
+  const [editForm, setEditForm] = useState({ name: '', address: '', description: '', phone: '', opening_hours: '' })
+  const [editLoading, setEditLoading] = useState(false)
 
   useEffect(() => { checkUser() }, [])
 
@@ -37,23 +49,62 @@ export default function ProfilePage() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { navigate('/login'); return }
     setUser(user)
+    const { data: profileData } = await supabase.from('profiles').select('*').eq('id', user.id).single()
+    if (profileData) setProfile(profileData)
     fetchFavorites(user.id)
+    fetchMyPlaces(user.id)
   }
 
   async function fetchFavorites(userId: string) {
     setLoading(true)
-    const { data } = await supabase
-      .from('favorites')
-      .select('place_id, places(id, name, slug, image, address, rating, categories(name, icon))')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false })
+    const { data } = await supabase.from('favorites').select('place_id, places(id, name, slug, image, address, rating, categories(name, icon))').eq('user_id', userId).order('created_at', { ascending: false })
     if (data) setFavorites(data.map((f: any) => f.places).filter(Boolean))
     setLoading(false)
+  }
+
+ async function fetchMyPlaces(userId: string) {
+    const { data } = await supabase.from('places').select('id, name, slug, image, address, rating, categories(name, icon)').eq('owner_id', userId).order('created_at', { ascending: false })
+    if (data) setMyPlaces(data.map((p: any) => ({ ...p, status: 'approved' })) as any)
   }
 
   async function removeFavorite(placeId: number) {
     await supabase.from('favorites').delete().eq('user_id', user.id).eq('place_id', placeId)
     setFavorites(prev => prev.filter(p => p.id !== placeId))
+  }
+
+  async function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]; if (!file) return
+    setUploadingAvatar(true)
+    const fileName = `avatar_${user.id}_${Date.now()}.${file.name.split('.').pop()}`
+    const { data, error } = await supabase.storage.from('places').upload(fileName, file)
+    if (!error && data) {
+      const { data: urlData } = supabase.storage.from('places').getPublicUrl(fileName)
+      await supabase.from('profiles').update({ avatar_url: urlData.publicUrl }).eq('id', user.id)
+      setProfile((prev: any) => ({ ...prev, avatar_url: urlData.publicUrl }))
+    }
+    setUploadingAvatar(false)
+  }
+
+  function openEdit(place: MyPlace) {
+    setEditingPlace(place)
+    setEditForm({ name: place.name, address: place.address, description: '', phone: '', opening_hours: '' })
+  }
+
+  async function saveEdit() {
+    if (!editingPlace) return
+    setEditLoading(true)
+    const newSlug = editForm.name.replace(/\s+/g, '-').toLowerCase() + '-' + editingPlace.id
+    await supabase.from('places').update({
+      name: editForm.name,
+      slug: newSlug,
+      address: editForm.address,
+      phone: editForm.phone,
+      opening_hours: editForm.opening_hours,
+    }).eq('id', editingPlace.id)
+    setEditingPlace(null)
+    fetchMyPlaces(user.id)
+    setEditLoading(false)
+    alert('✅ تم تحديث المكان بنجاح!')
   }
 
   async function handleLogout() {
@@ -89,49 +140,95 @@ export default function ProfilePage() {
         .info-row:hover { background:rgba(124,77,255,0.08); }
         .logout-btn { transition:all 0.2s ease; cursor:pointer; border:none; width:100%; }
         .logout-btn:hover { background:rgba(239,68,68,0.15) !important; }
+        .avatar-upload:hover .avatar-overlay { opacity: 1 !important; }
+        .form-input { width:100%; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:12px; padding:10px 14px; color:white; font-size:13px; outline:none; box-sizing:border-box; }
+        .form-input:focus { border-color:rgba(124,77,255,0.5); }
       `}</style>
 
-      {/* Header مع خلفية */}
+      {/* Modal تعديل المكان */}
+      {editingPlace && (
+        <div onClick={() => setEditingPlace(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: '#0F1629', border: '1px solid rgba(124,77,255,0.3)', borderRadius: 24, padding: 28, width: '100%', maxWidth: 480 }}>
+            <h3 style={{ color: 'white', fontWeight: 700, fontSize: 16, margin: '0 0 20px' }}>✏️ تعديل المكان</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div>
+                <label style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12, display: 'block', marginBottom: 6 }}>اسم المكان</label>
+                <input value={editForm.name} onChange={e => setEditForm(p => ({ ...p, name: e.target.value }))} className="form-input" />
+              </div>
+              <div>
+                <label style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12, display: 'block', marginBottom: 6 }}>العنوان</label>
+                <input value={editForm.address} onChange={e => setEditForm(p => ({ ...p, address: e.target.value }))} className="form-input" />
+              </div>
+              <div>
+                <label style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12, display: 'block', marginBottom: 6 }}>رقم الهاتف</label>
+                <input value={editForm.phone} onChange={e => setEditForm(p => ({ ...p, phone: e.target.value }))} className="form-input" />
+              </div>
+              <div>
+                <label style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12, display: 'block', marginBottom: 6 }}>ساعات العمل</label>
+                <input value={editForm.opening_hours} onChange={e => setEditForm(p => ({ ...p, opening_hours: e.target.value }))} className="form-input" />
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+              <button onClick={saveEdit} disabled={editLoading}
+                style={{ flex: 1, background: 'linear-gradient(135deg,#7C4DFF,#00E5FF)', color: 'white', border: 'none', borderRadius: 12, padding: '12px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                {editLoading ? '⏳ جاري الحفظ...' : '💾 حفظ التعديلات'}
+              </button>
+              <button onClick={() => setEditingPlace(null)}
+                style={{ flex: 1, background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.6)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, padding: '12px', fontSize: 13, cursor: 'pointer' }}>
+                إلغاء
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Header */}
       <div style={{ position: 'relative', overflow: 'hidden', padding: '52px 16px 40px' }}>
         <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(135deg, #0B1020 0%, #1a0533 60%, #030812 100%)' }} />
         <div style={{ position: 'absolute', inset: 0, backgroundImage: `linear-gradient(rgba(124,77,255,0.05) 1px,transparent 1px),linear-gradient(90deg,rgba(124,77,255,0.05) 1px,transparent 1px)`, backgroundSize: '50px 50px' }} />
         <div style={{ position: 'absolute', top: -80, right: -80, width: 300, height: 300, borderRadius: '50%', background: 'radial-gradient(circle, rgba(124,77,255,0.2) 0%, transparent 70%)', animation: 'floatY 8s ease-in-out infinite' }} />
-        <div style={{ position: 'absolute', bottom: -40, left: '30%', width: 200, height: 200, borderRadius: '50%', background: 'radial-gradient(circle, rgba(0,229,255,0.1) 0%, transparent 70%)', animation: 'floatY 10s ease-in-out infinite reverse' }} />
 
-        {/* دائرة دوارة حول الأفاتار */}
         <div style={{ maxWidth: 760, margin: '0 auto', position: 'relative', zIndex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 20, flexWrap: 'wrap' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
 
-              {/* Avatar */}
-              <div style={{ position: 'relative', flexShrink: 0 }}>
+              {/* Avatar مع رفع صورة */}
+              <div style={{ position: 'relative', flexShrink: 0 }} className="avatar-upload">
                 <div style={{ position: 'absolute', inset: -6, borderRadius: '50%', border: '1px solid rgba(124,77,255,0.4)', animation: 'rotate-slow 10s linear infinite' }}>
                   <div style={{ position: 'absolute', top: -3, left: '50%', width: 6, height: 6, borderRadius: '50%', background: '#7C4DFF', boxShadow: '0 0 10px #7C4DFF' }} />
                 </div>
-                <div style={{
-                  width: 72, height: 72, borderRadius: '50%',
-                  background: 'linear-gradient(135deg, #7C4DFF, #00E5FF)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  color: 'white', fontSize: 28, fontWeight: 900,
-                  boxShadow: '0 0 30px rgba(124,77,255,0.5)',
-                }}>
-                  {user?.user_metadata?.full_name?.[0]?.toUpperCase() || '👤'}
+                <div style={{ width: 72, height: 72, borderRadius: '50%', overflow: 'hidden', boxShadow: '0 0 30px rgba(124,77,255,0.5)', position: 'relative' }}>
+                  {profile?.avatar_url ? (
+                    <img src={profile.avatar_url} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : (
+                    <div style={{ width: '100%', height: '100%', background: 'linear-gradient(135deg, #7C4DFF, #00E5FF)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: 28, fontWeight: 900 }}>
+                      {user?.user_metadata?.full_name?.[0]?.toUpperCase() || '👤'}
+                    </div>
+                  )}
+                  {/* Overlay عند hover */}
+                  <label className="avatar-overlay" style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', opacity: 0, transition: 'opacity 0.2s', fontSize: 20 }}>
+                    {uploadingAvatar ? '⏳' : '📷'}
+                    <input type="file" accept="image/*" onChange={handleAvatarUpload} style={{ display: 'none' }} disabled={uploadingAvatar} />
+                  </label>
                 </div>
               </div>
 
               <div style={{ animation: 'slideUp 0.6s ease' }}>
-                <h1 style={{
-                  fontSize: 24, fontWeight: 900, margin: '0 0 6px',
-                  background: 'linear-gradient(90deg,#fff,#a78bfa)',
-                  WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
-                }}>
+                <h1 style={{ fontSize: 24, fontWeight: 900, margin: '0 0 6px', background: 'linear-gradient(90deg,#fff,#a78bfa)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
                   {user?.user_metadata?.full_name || 'المستخدم'}
                 </h1>
                 <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13, margin: '0 0 6px' }}>{user?.email}</p>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ color: '#f87171', fontSize: 14 }}>❤️</span>
-                  <span style={{ color: '#00E5FF', fontWeight: 700, fontSize: 14 }}>{favorites.length}</span>
-                  <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13 }}>مكان محفوظ</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ color: '#f87171', fontSize: 14 }}>❤️</span>
+                    <span style={{ color: '#00E5FF', fontWeight: 700, fontSize: 14 }}>{favorites.length}</span>
+                    <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13 }}>محفوظ</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ color: '#a78bfa', fontSize: 14 }}>📍</span>
+                    <span style={{ color: '#00E5FF', fontWeight: 700, fontSize: 14 }}>{myPlaces.length}</span>
+                    <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13 }}>مكان منشور</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -148,15 +245,13 @@ export default function ProfilePage() {
 
         {/* Tabs */}
         <div style={{ display: 'flex', gap: 4, background: 'rgba(255,255,255,0.04)', borderRadius: 18, padding: 4, marginBottom: 28, animation: 'slideUp 0.5s 0.1s ease both', opacity: 0 }}>
-          {[{ key: 'favorites', label: `المفضلة (${favorites.length})`, icon: '❤️' }, { key: 'info', label: 'معلومات الحساب', icon: '👤' }].map(tab => (
+          {[
+            { key: 'favorites', label: `المفضلة (${favorites.length})`, icon: '❤️' },
+            { key: 'myplaces', label: `أماكني (${myPlaces.length})`, icon: '📍' },
+            { key: 'info', label: 'الحساب', icon: '👤' }
+          ].map(tab => (
             <button key={tab.key} onClick={() => setActiveTab(tab.key as any)} className="tab-btn"
-              style={{
-                flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                padding: '11px 8px', borderRadius: 14, fontSize: 13, fontWeight: 600,
-                background: activeTab === tab.key ? 'linear-gradient(135deg,#7C4DFF,#00E5FF)' : 'transparent',
-                color: activeTab === tab.key ? 'white' : 'rgba(255,255,255,0.45)',
-                boxShadow: activeTab === tab.key ? '0 4px 20px rgba(124,77,255,0.4)' : 'none',
-              }}>
+              style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '11px 8px', borderRadius: 14, fontSize: 13, fontWeight: 600, background: activeTab === tab.key ? 'linear-gradient(135deg,#7C4DFF,#00E5FF)' : 'transparent', color: activeTab === tab.key ? 'white' : 'rgba(255,255,255,0.45)', boxShadow: activeTab === tab.key ? '0 4px 20px rgba(124,77,255,0.4)' : 'none' }}>
               <span>{tab.icon}</span><span>{tab.label}</span>
             </button>
           ))}
@@ -170,9 +265,7 @@ export default function ProfilePage() {
                 <p style={{ fontSize: 48, marginBottom: 16 }}>🤍</p>
                 <p style={{ color: 'rgba(255,255,255,0.6)', fontWeight: 600, fontSize: 16, marginBottom: 8 }}>لا توجد أماكن محفوظة بعد</p>
                 <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 13, marginBottom: 24 }}>اضغط ❤️ على أي مكان لحفظه هنا</p>
-                <Link to="/" style={{ background: 'linear-gradient(135deg,#7C4DFF,#00E5FF)', color: 'white', fontSize: 13, padding: '12px 28px', borderRadius: 14, textDecoration: 'none', fontWeight: 700 }}>
-                  استكشف الأماكن ✦
-                </Link>
+                <Link to="/" style={{ background: 'linear-gradient(135deg,#7C4DFF,#00E5FF)', color: 'white', fontSize: 13, padding: '12px 28px', borderRadius: 14, textDecoration: 'none', fontWeight: 700 }}>استكشف الأماكن ✦</Link>
               </div>
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(220px,1fr))', gap: 16 }}>
@@ -180,38 +273,58 @@ export default function ProfilePage() {
                   <div key={place.id} className="fav-card glass" style={{ borderRadius: 20, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.06)', animation: `slideUp 0.4s ${i*0.06}s ease both`, opacity: 0 }}>
                     <div style={{ position: 'relative' }}>
                       <Link to={`/place/${place.slug}`}>
-                        <img
-                          src={place.image && place.image !== 'EMPTY' ? place.image : 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400'}
-                          alt={place.name}
-                          style={{ width: '100%', height: 150, objectFit: 'cover', display: 'block', transition: 'transform 0.3s ease' }}
-                          onMouseEnter={e => (e.currentTarget.style.transform = 'scale(1.05)')}
-                          onMouseLeave={e => (e.currentTarget.style.transform = 'scale(1)')}
-                        />
+                        <img src={place.image && place.image !== 'EMPTY' ? place.image : 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400'} alt={place.name}
+                          style={{ width: '100%', height: 150, objectFit: 'cover', display: 'block' }} />
                       </Link>
-                      <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(8,12,26,0.7) 0%, transparent 55%)', pointerEvents: 'none' }} />
                       <button onClick={() => removeFavorite(place.id)}
-                        style={{ position: 'absolute', top: 10, left: 10, width: 32, height: 32, borderRadius: '50%', background: 'rgba(239,68,68,0.8)', backdropFilter: 'blur(10px)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, transition: 'all 0.2s' }}
-                        onMouseEnter={e => (e.currentTarget.style.background = 'rgba(239,68,68,1)')}
-                        onMouseLeave={e => (e.currentTarget.style.background = 'rgba(239,68,68,0.8)')}>
+                        style={{ position: 'absolute', top: 10, left: 10, width: 32, height: 32, borderRadius: '50%', background: 'rgba(239,68,68,0.8)', backdropFilter: 'blur(10px)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>
                         ❤️
                       </button>
                     </div>
                     <div style={{ padding: '12px 14px 14px' }}>
-                      {place.categories && (
-                        <span style={{ fontSize: 11, color: '#a78bfa', background: 'rgba(124,77,255,0.15)', padding: '3px 10px', borderRadius: 999 }}>
-                          {place.categories.icon} {place.categories.name}
-                        </span>
-                      )}
+                      {place.categories && <span style={{ fontSize: 11, color: '#a78bfa', background: 'rgba(124,77,255,0.15)', padding: '3px 10px', borderRadius: 999 }}>{place.categories.icon} {place.categories.name}</span>}
                       <Link to={`/place/${place.slug}`} style={{ textDecoration: 'none' }}>
-                        <p style={{ color: 'white', fontWeight: 600, fontSize: 14, margin: '8px 0 6px', transition: 'color 0.2s' }}
-                          onMouseEnter={e => (e.currentTarget.style.color = '#a78bfa')}
-                          onMouseLeave={e => (e.currentTarget.style.color = 'white')}>
-                          {place.name}
-                        </p>
+                        <p style={{ color: 'white', fontWeight: 600, fontSize: 14, margin: '8px 0 6px' }}>{place.name}</p>
                       </Link>
                       <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 11, margin: '0 0 4px' }}>📍 {place.address}</p>
                       <p style={{ color: '#fbbf24', fontSize: 12, fontWeight: 700, margin: 0 }}>⭐ {place.rating}</p>
                     </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* My Places Tab */}
+        {activeTab === 'myplaces' && (
+          <div style={{ animation: 'slideUp 0.4s ease' }}>
+            {myPlaces.length === 0 ? (
+              <div className="glass" style={{ borderRadius: 24, padding: '64px 0', textAlign: 'center' }}>
+                <p style={{ fontSize: 48, marginBottom: 16 }}>📍</p>
+                <p style={{ color: 'rgba(255,255,255,0.6)', fontWeight: 600, fontSize: 16, marginBottom: 8 }}>لم تضف أي مكان بعد</p>
+                <Link to="/add-place" style={{ background: 'linear-gradient(135deg,#7C4DFF,#00E5FF)', color: 'white', fontSize: 13, padding: '12px 28px', borderRadius: 14, textDecoration: 'none', fontWeight: 700 }}>أضف مكانك ✦</Link>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {myPlaces.map((place, i) => (
+                  <div key={place.id} className="glass" style={{ borderRadius: 18, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14, animation: `slideUp 0.4s ${i*0.05}s ease both`, opacity: 0 }}>
+                    {place.image && place.image !== 'EMPTY' ? (
+                      <img src={place.image} alt={place.name} style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 12, flexShrink: 0 }} />
+                    ) : (
+                      <div style={{ width: 56, height: 56, background: 'rgba(124,77,255,0.2)', borderRadius: 12, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>📍</div>
+                    )}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ color: 'white', fontWeight: 700, fontSize: 14, margin: '0 0 4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{place.name}</p>
+                      <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 11, margin: '0 0 4px' }}>📍 {place.address}</p>
+                      <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 999, fontWeight: 700, background: place.status === 'pending' ? 'rgba(251,191,36,0.15)' : place.status === 'approved' ? 'rgba(52,211,153,0.15)' : 'rgba(239,68,68,0.15)', color: place.status === 'pending' ? '#fbbf24' : place.status === 'approved' ? '#34d399' : '#f87171' }}>
+                        {place.status === 'pending' ? '⏳ قيد المراجعة' : place.status === 'approved' ? '✅ منشور' : '❌ مرفوض'}
+                      </span>
+                    </div>
+                    <button onClick={() => openEdit(place)}
+                      style={{ background: 'rgba(124,77,255,0.15)', border: '1px solid rgba(124,77,255,0.3)', color: '#a78bfa', borderRadius: 10, padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
+                      ✏️ تعديل
+                    </button>
                   </div>
                 ))}
               </div>
@@ -228,41 +341,28 @@ export default function ProfilePage() {
                   <span style={{ background: 'rgba(124,77,255,0.2)', borderRadius: 10, padding: '4px 8px' }}>👤</span>
                   معلومات الحساب
                 </h3>
-
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                   <div className="info-row" style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                     <span style={{ width: 40, height: 40, background: 'rgba(96,165,250,0.15)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>👤</span>
-                    <div>
-                      <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 11, margin: '0 0 2px' }}>الاسم</p>
-                      <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 14, margin: 0, fontWeight: 600 }}>{user?.user_metadata?.full_name || '—'}</p>
-                    </div>
+                    <div><p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 11, margin: '0 0 2px' }}>الاسم</p><p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 14, margin: 0, fontWeight: 600 }}>{user?.user_metadata?.full_name || '—'}</p></div>
                   </div>
-
                   <div className="info-row" style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                     <span style={{ width: 40, height: 40, background: 'rgba(167,139,250,0.15)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>📧</span>
-                    <div>
-                      <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 11, margin: '0 0 2px' }}>البريد الإلكتروني</p>
-                      <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 14, margin: 0 }}>{user?.email}</p>
-                    </div>
+                    <div><p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 11, margin: '0 0 2px' }}>البريد الإلكتروني</p><p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 14, margin: 0 }}>{user?.email}</p></div>
                   </div>
-
                   <div className="info-row" style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                     <span style={{ width: 40, height: 40, background: 'rgba(52,211,153,0.15)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>📅</span>
-                    <div>
-                      <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 11, margin: '0 0 2px' }}>تاريخ الانضمام</p>
-                      <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 14, margin: 0 }}>{new Date(user?.created_at).toLocaleDateString('ar-IQ')}</p>
-                    </div>
+                    <div><p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 11, margin: '0 0 2px' }}>تاريخ الانضمام</p><p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 14, margin: 0 }}>{new Date(user?.created_at).toLocaleDateString('ar-IQ')}</p></div>
                   </div>
-
                   <div className="info-row" style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                     <span style={{ width: 40, height: 40, background: 'rgba(239,68,68,0.15)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>❤️</span>
-                    <div>
-                      <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 11, margin: '0 0 2px' }}>الأماكن المحفوظة</p>
-                      <p style={{ color: '#00E5FF', fontSize: 18, fontWeight: 900, margin: 0 }}>{favorites.length}</p>
-                    </div>
+                    <div><p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 11, margin: '0 0 2px' }}>الأماكن المحفوظة</p><p style={{ color: '#00E5FF', fontSize: 18, fontWeight: 900, margin: 0 }}>{favorites.length}</p></div>
+                  </div>
+                  <div className="info-row" style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                    <span style={{ width: 40, height: 40, background: 'rgba(124,77,255,0.15)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>📍</span>
+                    <div><p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 11, margin: '0 0 2px' }}>الأماكن المنشورة</p><p style={{ color: '#00E5FF', fontSize: 18, fontWeight: 900, margin: 0 }}>{myPlaces.length}</p></div>
                   </div>
                 </div>
-
                 <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', marginTop: 20, paddingTop: 20 }}>
                   <button onClick={handleLogout} className="logout-btn"
                     style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 14, padding: '13px', fontSize: 14, color: '#f87171', fontWeight: 700 }}>
