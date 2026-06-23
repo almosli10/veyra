@@ -14,6 +14,10 @@ interface MyPlace {
   categories?: { name: string; icon: string }
 }
 
+interface PlaceImage {
+  id: number; image_url: string
+}
+
 function TiltCard({ children, style = {} }: { children: React.ReactNode; style?: React.CSSProperties }) {
   const ref = useRef<HTMLDivElement>(null)
   function onMove(e: React.MouseEvent) {
@@ -42,6 +46,9 @@ export default function ProfilePage() {
   const [editingPlace, setEditingPlace] = useState<MyPlace | null>(null)
   const [editForm, setEditForm] = useState({ name: '', address: '', description: '', phone: '', opening_hours: '' })
   const [editLoading, setEditLoading] = useState(false)
+  const [placeImages, setPlaceImages] = useState<PlaceImage[]>([])
+  const [uploadingImage, setUploadingImage] = useState(false)
+  const [deletingImageId, setDeletingImageId] = useState<number | null>(null)
 
   useEffect(() => { checkUser() }, [])
 
@@ -62,9 +69,14 @@ export default function ProfilePage() {
     setLoading(false)
   }
 
- async function fetchMyPlaces(userId: string) {
+  async function fetchMyPlaces(userId: string) {
     const { data } = await supabase.from('places').select('id, name, slug, image, address, rating, categories(name, icon)').eq('owner_id', userId).order('created_at', { ascending: false })
     if (data) setMyPlaces(data.map((p: any) => ({ ...p, status: 'approved' })) as any)
+  }
+
+  async function fetchPlaceImages(placeId: number) {
+    const { data } = await supabase.from('place_images').select('id, image_url').eq('place_id', placeId).order('created_at', { ascending: true })
+    if (data) setPlaceImages(data)
   }
 
   async function removeFavorite(placeId: number) {
@@ -88,6 +100,7 @@ export default function ProfilePage() {
   function openEdit(place: MyPlace) {
     setEditingPlace(place)
     setEditForm({ name: place.name, address: place.address, description: '', phone: '', opening_hours: '' })
+    fetchPlaceImages(place.id)
   }
 
   async function saveEdit() {
@@ -105,6 +118,41 @@ export default function ProfilePage() {
     fetchMyPlaces(user.id)
     setEditLoading(false)
     alert('✅ تم تحديث المكان بنجاح!')
+  }
+
+  async function handleAddImage(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]; if (!file || !editingPlace) return
+    setUploadingImage(true)
+    const fileName = `place_${editingPlace.id}_${Date.now()}.${file.name.split('.').pop()}`
+    const { data, error } = await supabase.storage.from('places').upload(fileName, file)
+    if (!error && data) {
+      const { data: urlData } = supabase.storage.from('places').getPublicUrl(fileName)
+      const { data: imgData } = await supabase.from('place_images').insert({ place_id: editingPlace.id, image_url: urlData.publicUrl }).select().single()
+      if (imgData) setPlaceImages(prev => [...prev, imgData])
+      // اذا ما عنده صورة رئيسية، نحدثها
+      if (!editingPlace.image || editingPlace.image === 'EMPTY') {
+        await supabase.from('places').update({ image: urlData.publicUrl }).eq('id', editingPlace.id)
+      }
+    }
+    setUploadingImage(false)
+    e.target.value = ''
+  }
+
+  async function handleDeleteImage(img: PlaceImage) {
+    if (!editingPlace) return
+    setDeletingImageId(img.id)
+    // استخراج اسم الملف من الـ URL
+    const fileName = img.image_url.split('/').pop()
+    if (fileName) await supabase.storage.from('places').remove([fileName])
+    await supabase.from('place_images').delete().eq('id', img.id)
+    setPlaceImages(prev => prev.filter(i => i.id !== img.id))
+    // اذا كانت الصورة الرئيسية للمكان، نحدثها بأول صورة متبقية
+    const remaining = placeImages.filter(i => i.id !== img.id)
+    if (editingPlace.image === img.image_url) {
+      const newMain = remaining[0]?.image_url || 'EMPTY'
+      await supabase.from('places').update({ image: newMain }).eq('id', editingPlace.id)
+    }
+    setDeletingImageId(null)
   }
 
   async function handleLogout() {
@@ -143,14 +191,18 @@ export default function ProfilePage() {
         .avatar-upload:hover .avatar-overlay { opacity: 1 !important; }
         .form-input { width:100%; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:12px; padding:10px 14px; color:white; font-size:13px; outline:none; box-sizing:border-box; }
         .form-input:focus { border-color:rgba(124,77,255,0.5); }
+        .img-thumb { position:relative; border-radius:10px; overflow:hidden; }
+        .img-thumb:hover .img-delete { opacity:1 !important; }
       `}</style>
 
       {/* Modal تعديل المكان */}
       {editingPlace && (
-        <div onClick={() => setEditingPlace(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: '#0F1629', border: '1px solid rgba(124,77,255,0.3)', borderRadius: 24, padding: 28, width: '100%', maxWidth: 480 }}>
+        <div onClick={() => setEditingPlace(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: '#0F1629', border: '1px solid rgba(124,77,255,0.3)', borderRadius: 24, padding: 28, width: '100%', maxWidth: 520, maxHeight: '90vh', overflowY: 'auto' }}>
             <h3 style={{ color: 'white', fontWeight: 700, fontSize: 16, margin: '0 0 20px' }}>✏️ تعديل المكان</h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+            {/* بيانات المكان */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 24 }}>
               <div>
                 <label style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12, display: 'block', marginBottom: 6 }}>اسم المكان</label>
                 <input value={editForm.name} onChange={e => setEditForm(p => ({ ...p, name: e.target.value }))} className="form-input" />
@@ -168,7 +220,41 @@ export default function ProfilePage() {
                 <input value={editForm.opening_hours} onChange={e => setEditForm(p => ({ ...p, opening_hours: e.target.value }))} className="form-input" />
               </div>
             </div>
-            <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+
+            {/* قسم الصور */}
+            <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 20, marginBottom: 20 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+                <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, fontWeight: 700, margin: 0 }}>🖼️ الصور ({placeImages.length})</p>
+                <label style={{ background: 'rgba(124,77,255,0.2)', border: '1px solid rgba(124,77,255,0.4)', color: '#a78bfa', borderRadius: 10, padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: uploadingImage ? 'not-allowed' : 'pointer', opacity: uploadingImage ? 0.6 : 1 }}>
+                  {uploadingImage ? '⏳ جاري الرفع...' : '+ إضافة صورة'}
+                  <input type="file" accept="image/*" onChange={handleAddImage} style={{ display: 'none' }} disabled={uploadingImage} />
+                </label>
+              </div>
+
+              {placeImages.length === 0 ? (
+                <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px dashed rgba(255,255,255,0.1)', borderRadius: 14, padding: '24px', textAlign: 'center' }}>
+                  <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 13, margin: 0 }}>لا توجد صور، أضف صورة للمكان</p>
+                </div>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+                  {placeImages.map(img => (
+                    <div key={img.id} className="img-thumb" style={{ aspectRatio: '1', background: 'rgba(255,255,255,0.05)' }}>
+                      <img src={img.image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                      <button
+                        className="img-delete"
+                        onClick={() => handleDeleteImage(img)}
+                        disabled={deletingImageId === img.id}
+                        style={{ position: 'absolute', inset: 0, background: 'rgba(239,68,68,0.75)', border: 'none', color: 'white', fontSize: 20, cursor: 'pointer', opacity: 0, transition: 'opacity 0.2s', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        {deletingImageId === img.id ? '⏳' : '🗑️'}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* أزرار الحفظ والإلغاء */}
+            <div style={{ display: 'flex', gap: 10 }}>
               <button onClick={saveEdit} disabled={editLoading}
                 style={{ flex: 1, background: 'linear-gradient(135deg,#7C4DFF,#00E5FF)', color: 'white', border: 'none', borderRadius: 12, padding: '12px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
                 {editLoading ? '⏳ جاري الحفظ...' : '💾 حفظ التعديلات'}
@@ -191,8 +277,6 @@ export default function ProfilePage() {
         <div style={{ maxWidth: 760, margin: '0 auto', position: 'relative', zIndex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 20, flexWrap: 'wrap' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
-
-              {/* Avatar مع رفع صورة */}
               <div style={{ position: 'relative', flexShrink: 0 }} className="avatar-upload">
                 <div style={{ position: 'absolute', inset: -6, borderRadius: '50%', border: '1px solid rgba(124,77,255,0.4)', animation: 'rotate-slow 10s linear infinite' }}>
                   <div style={{ position: 'absolute', top: -3, left: '50%', width: 6, height: 6, borderRadius: '50%', background: '#7C4DFF', boxShadow: '0 0 10px #7C4DFF' }} />
@@ -205,7 +289,6 @@ export default function ProfilePage() {
                       {user?.user_metadata?.full_name?.[0]?.toUpperCase() || '👤'}
                     </div>
                   )}
-                  {/* Overlay عند hover */}
                   <label className="avatar-overlay" style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', opacity: 0, transition: 'opacity 0.2s', fontSize: 20 }}>
                     {uploadingAvatar ? '⏳' : '📷'}
                     <input type="file" accept="image/*" onChange={handleAvatarUpload} style={{ display: 'none' }} disabled={uploadingAvatar} />

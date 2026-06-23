@@ -13,9 +13,9 @@ export default function Navbar() {
   const { t, i18n } = useTranslation()
 
   const langs = [
-    { code: 'ar', label: 'العربية', flag: '🇮🇶' },
-    { code: 'ku', label: 'کوردی', flag: '🏴' },
-    { code: 'en', label: 'English', flag: '🇬🇧' },
+    { code: 'ar', label: 'العربية', flag: 'AR' },
+    { code: 'ku', label: 'کوردی', flag: 'KR' },
+    { code: 'en', label: 'English', flag: 'EN' },
   ]
 
   useEffect(() => {
@@ -75,7 +75,7 @@ export default function Navbar() {
             <div style={{ width:36, height:36, background:'linear-gradient(135deg,#7C4DFF,#00E5FF)', borderRadius:12, display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, boxShadow:'0 0 20px rgba(124,77,255,0.4)' }}>📍</div>
             <div>
               <span style={{ color:'white', fontWeight:800, fontSize:18, letterSpacing:-0.5 }}>Veyra</span>
-              <span style={{ color:'rgba(255,255,255,0.3)', fontSize:11, marginRight:6 }}>Akre</span>
+              <span style={{ color:'rgba(255,255,255,0.3)', fontSize:11, marginRight:6 }}> Akre</span>
             </div>
           </Link>
 
@@ -92,7 +92,7 @@ export default function Navbar() {
             {/* Language Switcher */}
             <div style={{ position:'relative' }}>
               <button className="lang-btn" onClick={() => setLangOpen(!langOpen)}>
-                <span>{currentLang.flag}</span>
+                <span style={{ fontSize:11, fontWeight:700, color:'#00E5FF' }}>{currentLang.flag}</span>
                 <span>{currentLang.label}</span>
                 <span style={{ fontSize:10, opacity:0.6 }}>{langOpen ? '▲' : '▼'}</span>
               </button>
@@ -100,7 +100,7 @@ export default function Navbar() {
                 <div className="lang-dropdown" style={{ right: i18n.language === 'en' ? 'auto' : 0, left: i18n.language === 'en' ? 0 : 'auto' }}>
                   {langs.map(l => (
                     <button key={l.code} className={`lang-option${i18n.language === l.code ? ' active' : ''}`} onClick={() => changeLang(l.code)}>
-                      <span>{l.flag}</span>
+                      <span style={{ fontSize:11, fontWeight:700, color:'#00E5FF', minWidth:24 }}>{l.flag}</span>
                       <span>{l.label}</span>
                       {i18n.language === l.code && <span style={{ marginRight:'auto', color:'#7C4DFF' }}>✓</span>}
                     </button>
