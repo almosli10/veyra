@@ -50,6 +50,11 @@ export default function ProfilePage() {
   const [uploadingImage, setUploadingImage] = useState(false)
   const [deletingImageId, setDeletingImageId] = useState<number | null>(null)
 
+  // تعديل الاسم
+  const [editingName, setEditingName] = useState(false)
+  const [newName, setNewName] = useState('')
+  const [savingName, setSavingName] = useState(false)
+
   useEffect(() => { checkUser() }, [])
 
   async function checkUser() {
@@ -97,6 +102,16 @@ export default function ProfilePage() {
     setUploadingAvatar(false)
   }
 
+  async function saveName() {
+    if (!newName.trim()) return
+    setSavingName(true)
+    await supabase.auth.updateUser({ data: { full_name: newName.trim() } })
+    await supabase.from('profiles').update({ full_name: newName.trim() }).eq('id', user.id)
+    setUser((prev: any) => ({ ...prev, user_metadata: { ...prev.user_metadata, full_name: newName.trim() } }))
+    setEditingName(false)
+    setSavingName(false)
+  }
+
   function openEdit(place: MyPlace) {
     setEditingPlace(place)
     setEditForm({ name: place.name, address: place.address, description: '', phone: '', opening_hours: '' })
@@ -129,7 +144,6 @@ export default function ProfilePage() {
       const { data: urlData } = supabase.storage.from('places').getPublicUrl(fileName)
       const { data: imgData } = await supabase.from('place_images').insert({ place_id: editingPlace.id, image_url: urlData.publicUrl }).select().single()
       if (imgData) setPlaceImages(prev => [...prev, imgData])
-      // اذا ما عنده صورة رئيسية، نحدثها
       if (!editingPlace.image || editingPlace.image === 'EMPTY') {
         await supabase.from('places').update({ image: urlData.publicUrl }).eq('id', editingPlace.id)
       }
@@ -141,12 +155,10 @@ export default function ProfilePage() {
   async function handleDeleteImage(img: PlaceImage) {
     if (!editingPlace) return
     setDeletingImageId(img.id)
-    // استخراج اسم الملف من الـ URL
     const fileName = img.image_url.split('/').pop()
     if (fileName) await supabase.storage.from('places').remove([fileName])
     await supabase.from('place_images').delete().eq('id', img.id)
     setPlaceImages(prev => prev.filter(i => i.id !== img.id))
-    // اذا كانت الصورة الرئيسية للمكان، نحدثها بأول صورة متبقية
     const remaining = placeImages.filter(i => i.id !== img.id)
     if (editingPlace.image === img.image_url) {
       const newMain = remaining[0]?.image_url || 'EMPTY'
@@ -193,6 +205,7 @@ export default function ProfilePage() {
         .form-input:focus { border-color:rgba(124,77,255,0.5); }
         .img-thumb { position:relative; border-radius:10px; overflow:hidden; }
         .img-thumb:hover .img-delete { opacity:1 !important; }
+        .name-input { background:rgba(255,255,255,0.07); border:1px solid rgba(124,77,255,0.5); border-radius:10px; padding:6px 12px; color:white; font-size:14px; font-weight:600; outline:none; width:180px; }
       `}</style>
 
       {/* Modal تعديل المكان */}
@@ -200,8 +213,6 @@ export default function ProfilePage() {
         <div onClick={() => setEditingPlace(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div onClick={e => e.stopPropagation()} style={{ background: '#0F1629', border: '1px solid rgba(124,77,255,0.3)', borderRadius: 24, padding: 28, width: '100%', maxWidth: 520, maxHeight: '90vh', overflowY: 'auto' }}>
             <h3 style={{ color: 'white', fontWeight: 700, fontSize: 16, margin: '0 0 20px' }}>✏️ تعديل المكان</h3>
-
-            {/* بيانات المكان */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 24 }}>
               <div>
                 <label style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12, display: 'block', marginBottom: 6 }}>اسم المكان</label>
@@ -220,8 +231,6 @@ export default function ProfilePage() {
                 <input value={editForm.opening_hours} onChange={e => setEditForm(p => ({ ...p, opening_hours: e.target.value }))} className="form-input" />
               </div>
             </div>
-
-            {/* قسم الصور */}
             <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 20, marginBottom: 20 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
                 <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13, fontWeight: 700, margin: 0 }}>🖼️ الصور ({placeImages.length})</p>
@@ -230,7 +239,6 @@ export default function ProfilePage() {
                   <input type="file" accept="image/*" onChange={handleAddImage} style={{ display: 'none' }} disabled={uploadingImage} />
                 </label>
               </div>
-
               {placeImages.length === 0 ? (
                 <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px dashed rgba(255,255,255,0.1)', borderRadius: 14, padding: '24px', textAlign: 'center' }}>
                   <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 13, margin: 0 }}>لا توجد صور، أضف صورة للمكان</p>
@@ -240,10 +248,7 @@ export default function ProfilePage() {
                   {placeImages.map(img => (
                     <div key={img.id} className="img-thumb" style={{ aspectRatio: '1', background: 'rgba(255,255,255,0.05)' }}>
                       <img src={img.image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-                      <button
-                        className="img-delete"
-                        onClick={() => handleDeleteImage(img)}
-                        disabled={deletingImageId === img.id}
+                      <button className="img-delete" onClick={() => handleDeleteImage(img)} disabled={deletingImageId === img.id}
                         style={{ position: 'absolute', inset: 0, background: 'rgba(239,68,68,0.75)', border: 'none', color: 'white', fontSize: 20, cursor: 'pointer', opacity: 0, transition: 'opacity 0.2s', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         {deletingImageId === img.id ? '⏳' : '🗑️'}
                       </button>
@@ -252,8 +257,6 @@ export default function ProfilePage() {
                 </div>
               )}
             </div>
-
-            {/* أزرار الحفظ والإلغاء */}
             <div style={{ display: 'flex', gap: 10 }}>
               <button onClick={saveEdit} disabled={editLoading}
                 style={{ flex: 1, background: 'linear-gradient(135deg,#7C4DFF,#00E5FF)', color: 'white', border: 'none', borderRadius: 12, padding: '12px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
@@ -425,10 +428,42 @@ export default function ProfilePage() {
                   معلومات الحساب
                 </h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+
+                  {/* الاسم مع زر التعديل */}
                   <div className="info-row" style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                     <span style={{ width: 40, height: 40, background: 'rgba(96,165,250,0.15)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>👤</span>
-                    <div><p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 11, margin: '0 0 2px' }}>الاسم</p><p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 14, margin: 0, fontWeight: 600 }}>{user?.user_metadata?.full_name || '—'}</p></div>
+                    <div style={{ flex: 1 }}>
+                      <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 11, margin: '0 0 2px' }}>الاسم</p>
+                      {editingName ? (
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                          <input
+                            className="name-input"
+                            value={newName}
+                            onChange={e => setNewName(e.target.value)}
+                            autoFocus
+                            onKeyDown={e => e.key === 'Enter' && saveName()}
+                          />
+                          <button onClick={saveName} disabled={savingName}
+                            style={{ background: 'linear-gradient(135deg,#7C4DFF,#00E5FF)', border: 'none', color: 'white', borderRadius: 8, padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                            {savingName ? '⏳' : '✅ حفظ'}
+                          </button>
+                          <button onClick={() => setEditingName(false)}
+                            style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.5)', borderRadius: 8, padding: '6px 14px', fontSize: 12, cursor: 'pointer' }}>
+                            إلغاء
+                          </button>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 14, margin: 0, fontWeight: 600 }}>{user?.user_metadata?.full_name || '—'}</p>
+                          <button onClick={() => { setEditingName(true); setNewName(user?.user_metadata?.full_name || '') }}
+                            style={{ background: 'rgba(124,77,255,0.15)', border: '1px solid rgba(124,77,255,0.3)', color: '#a78bfa', borderRadius: 8, padding: '4px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                            ✏️ تعديل
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
+
                   <div className="info-row" style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                     <span style={{ width: 40, height: 40, background: 'rgba(167,139,250,0.15)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>📧</span>
                     <div><p style={{ color: 'rgba(255,255,255,0.35)', fontSize: 11, margin: '0 0 2px' }}>البريد الإلكتروني</p><p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 14, margin: 0 }}>{user?.email}</p></div>
