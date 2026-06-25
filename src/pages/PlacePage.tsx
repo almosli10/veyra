@@ -319,28 +319,21 @@ export default function PlacePage() {
         {activeTab === 'map' && (
           <div style={{ animation: 'slideUp 0.4s ease' }}>
             <div className="glass neon-border" style={{ borderRadius: 22, overflow: 'hidden' }}>
-              {place.map_url ? (
-                <div style={{ padding: 24, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20 }}>
-                  <div style={{ textAlign: 'center' }}>
-                    <p style={{ fontSize: 48, margin: '0 0 12px' }}>📍</p>
-                    <p style={{ color: 'white', fontWeight: 700, fontSize: 16, margin: '0 0 6px' }}>{place.name}</p>
-                    <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13, margin: 0 }}>{place.address}</p>
-                  </div>
-                   <a
-                  
-                    href={place.map_url}
-                    target="_blank"
-                    rel="noreferrer"
-                    style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'linear-gradient(135deg,#7C4DFF,#00E5FF)', color: 'white', fontSize: 14, padding: '14px 32px', borderRadius: 16, textDecoration: 'none', fontWeight: 700, boxShadow: '0 8px 24px rgba(124,77,255,0.4)' }}>
-                    🗺️ فتح في Google Maps
-                  </a>
-                </div>
-              ) : (
-                <div style={{ height: 240, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.3)' }}>
-                  <span style={{ fontSize: 40, marginBottom: 12 }}>🗺️</span>
-                  <p style={{ fontSize: 14 }}>الموقع على الخريطة غير متوفر</p>
-                </div>
-              )}
+              <div style={{ padding: 24, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20 }}>
+  <div style={{ textAlign: 'center' }}>
+    <p style={{ fontSize: 48, margin: '0 0 12px' }}>📍</p>
+    <p style={{ color: 'white', fontWeight: 700, fontSize: 16, margin: '0 0 6px' }}>{place.name}</p>
+    <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13, margin: 0 }}>{place.address}</p>
+  </div>
+  <a
+  
+    href={place.map_url || `https://www.google.com/maps/search/${encodeURIComponent(place.name + ' ' + place.address)}`}
+    target="_blank"
+    rel="noreferrer"
+    style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'linear-gradient(135deg,#7C4DFF,#00E5FF)', color: 'white', fontSize: 14, padding: '14px 32px', borderRadius: 16, textDecoration: 'none', fontWeight: 700, boxShadow: '0 8px 24px rgba(124,77,255,0.4)' }}>
+    🗺️ فتح في Google Maps
+  </a>
+</div>
             </div>
           </div>
         )}
