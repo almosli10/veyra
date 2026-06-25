@@ -1,22 +1,12 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet'
-import 'leaflet/dist/leaflet.css'
-import L from 'leaflet'
-
-delete (L.Icon.Default.prototype as any)._getIconUrl
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-})
 
 interface Place {
   id: number; name: string; name_ku?: string; slug: string; category_id: number
   description: string; address: string; phone?: string; whatsapp?: string
-  website?: string; latitude?: number; longitude?: number; opening_hours?: string
-  rating: number; reviews_count: number; image: string; featured: boolean
+  website?: string; latitude?: number; longitude?: number; map_url?: string
+  opening_hours?: string; rating: number; reviews_count: number; image: string; featured: boolean
   categories?: { name: string; icon: string }
 }
 interface Review {
@@ -108,7 +98,6 @@ export default function PlacePage() {
       }
       const { data: imagesData } = await supabase.from('place_images').select('*').eq('place_id', data.id).order('created_at', { ascending: true })
       if (imagesData) setPlaceImages(imagesData)
-
       const { data: { user: cu } } = await supabase.auth.getUser()
       if (cu) {
         const { data: fav } = await supabase.from('favorites').select('id').eq('user_id', cu.id).eq('place_id', data.id).single()
@@ -183,12 +172,10 @@ export default function PlacePage() {
         .star-btn { background:none; border:none; cursor:pointer; transition:transform 0.15s; padding:0; }
         .star-btn:hover { transform:scale(1.2); }
         .fav-btn { transition:all 0.3s ease; border:none; cursor:pointer; }
-        .leaflet-container { border-radius: 0; }
         .thumb-img { cursor:pointer; transition: transform 0.2s, opacity 0.2s; border-radius: 12px; object-fit: cover; }
         .thumb-img:hover { transform: scale(1.05); opacity: 0.85; }
       `}</style>
 
-      {/* Lightbox */}
       {lightboxIndex !== null && (
         <div onClick={() => setLightboxIndex(null)}
           style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.92)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', animation: 'fadeIn 0.2s ease' }}>
@@ -218,7 +205,6 @@ export default function PlacePage() {
           <span style={{ color: 'rgba(255,255,255,0.6)' }}>{place.name}</span>
         </div>
 
-        {/* Hero Image */}
         <div style={{ position: 'relative', borderRadius: 28, overflow: 'hidden', marginBottom: allImages.length > 1 ? 12 : 24, animation: 'slideUp 0.6s ease' }}>
           <img
             src={place.image && place.image !== 'EMPTY' ? place.image : 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800'}
@@ -250,7 +236,6 @@ export default function PlacePage() {
           )}
         </div>
 
-        {/* Thumbnails Gallery */}
         {allImages.length > 1 && (
           <div style={{ display: 'flex', gap: 8, marginBottom: 24, overflowX: 'auto', paddingBottom: 4 }}>
             {allImages.map((img, i) => (
@@ -334,27 +319,22 @@ export default function PlacePage() {
         {activeTab === 'map' && (
           <div style={{ animation: 'slideUp 0.4s ease' }}>
             <div className="glass neon-border" style={{ borderRadius: 22, overflow: 'hidden' }}>
-              {place.latitude && place.longitude ? (
-                <>
-                  <div style={{ height: 380, width: '100%' }}>
-                    <MapContainer center={[place.latitude, place.longitude]} zoom={15} style={{ height: '100%', width: '100%' }} scrollWheelZoom={false}>
-                      <TileLayer attribution='&copy; OpenStreetMap' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-                      <Marker position={[place.latitude, place.longitude]}>
-                        <Popup><div style={{ textAlign: 'center', padding: 4 }}><p style={{ fontWeight: 700, margin: '0 0 4px' }}>{place.name}</p><p style={{ fontSize: 11, color: '#666', margin: 0 }}>{place.address}</p></div></Popup>
-                      </Marker>
-                    </MapContainer>
+              {place.map_url ? (
+                <div style={{ padding: 24, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20 }}>
+                  <div style={{ textAlign: 'center' }}>
+                    <p style={{ fontSize: 48, margin: '0 0 12px' }}>📍</p>
+                    <p style={{ color: 'white', fontWeight: 700, fontSize: 16, margin: '0 0 6px' }}>{place.name}</p>
+                    <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13, margin: 0 }}>{place.address}</p>
                   </div>
-                  <div style={{ padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div>
-                      <p style={{ color: 'white', fontWeight: 600, fontSize: 14, margin: '0 0 4px' }}>{place.name}</p>
-                      <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12, margin: 0 }}>{place.address}</p>
-                    </div>
-                    <a href={`https://www.google.com/maps/dir/?api=1&destination=${place.latitude},${place.longitude}`} target="_blank" rel="noreferrer"
-                      style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'linear-gradient(135deg,#7C4DFF,#00E5FF)', color: 'white', fontSize: 12, padding: '10px 18px', borderRadius: 12, textDecoration: 'none', fontWeight: 700 }}>
-                      🧭 الاتجاهات
-                    </a>
-                  </div>
-                </>
+                   <a
+                  
+                    href={place.map_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'linear-gradient(135deg,#7C4DFF,#00E5FF)', color: 'white', fontSize: 14, padding: '14px 32px', borderRadius: 16, textDecoration: 'none', fontWeight: 700, boxShadow: '0 8px 24px rgba(124,77,255,0.4)' }}>
+                    🗺️ فتح في Google Maps
+                  </a>
+                </div>
               ) : (
                 <div style={{ height: 240, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.3)' }}>
                   <span style={{ fontSize: 40, marginBottom: 12 }}>🗺️</span>
