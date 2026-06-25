@@ -71,11 +71,35 @@ export default function Navbar() {
       <nav style={{ position:'sticky', top:0, zIndex:100, background: scrolled ? 'rgba(8,12,26,0.95)' : 'rgba(8,12,26,0.75)', backdropFilter:'blur(24px)', borderBottom:'1px solid rgba(255,255,255,0.06)', transition:'all 0.3s ease', boxShadow: scrolled ? '0 8px 32px rgba(0,0,0,0.4)' : 'none' }}>
         <div style={{ maxWidth:1152, margin:'0 auto', padding:'0 16px', height:64, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
 
+          {/* Logo الجديد */}
           <Link to="/" style={{ display:'flex', alignItems:'center', gap:10, textDecoration:'none' }}>
-            <div style={{ width:36, height:36, background:'linear-gradient(135deg,#7C4DFF,#00E5FF)', borderRadius:12, display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, boxShadow:'0 0 20px rgba(124,77,255,0.4)' }}>📍</div>
-            <div>
-              <span style={{ color:'white', fontWeight:800, fontSize:18, letterSpacing:-0.5 }}>Veyra</span>
-              <span style={{ color:'rgba(255,255,255,0.3)', fontSize:11, marginRight:6 }}> Akre</span>
+            <svg width="38" height="38" viewBox="0 0 38 38" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <linearGradient id="navG1" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%" stopColor="#7C4DFF"/>
+                  <stop offset="100%" stopColor="#00E5FF"/>
+                </linearGradient>
+                <linearGradient id="navG2" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#7C4DFF" stopOpacity="0.3"/>
+                  <stop offset="100%" stopColor="#00E5FF" stopOpacity="0.05"/>
+                </linearGradient>
+              </defs>
+              {/* Background circle */}
+              <circle cx="19" cy="19" r="18" fill="url(#navG2)"/>
+              <circle cx="19" cy="19" r="18" fill="none" stroke="url(#navG1)" strokeWidth="0.8" opacity="0.5"/>
+              {/* Mountains */}
+              <polygon points="5,30 12,19 17,24 23,16 31,30" fill="url(#navG1)" opacity="0.3"/>
+              <polygon points="8,30 15,17 22,30" fill="url(#navG1)" opacity="0.55"/>
+              {/* Snow */}
+              <polygon points="15,17 17.5,22 12.5,22" fill="white" opacity="0.8"/>
+              {/* Pin */}
+              <circle cx="25" cy="13" r="5.5" fill="url(#navG1)"/>
+              <path d="M25 18.5 Q21 23 25 29 Q29 23 25 18.5Z" fill="url(#navG1)"/>
+              <circle cx="25" cy="12" r="2.2" fill="white" opacity="0.95"/>
+            </svg>
+            <div style={{ display:'flex', flexDirection:'column', lineHeight:1.1 }}>
+              <span style={{ background:'linear-gradient(90deg,#fff,#a78bfa)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent', fontWeight:800, fontSize:18, letterSpacing:-0.5 }}>Veyra</span>
+              <span style={{ color:'rgba(255,255,255,0.3)', fontSize:10, letterSpacing:3 }}>AKRE</span>
             </div>
           </Link>
 
