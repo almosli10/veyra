@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { useTranslation } from 'react-i18next'
 
 interface Category { id: number; name: string; icon: string; slug: string }
 interface Place {
@@ -40,6 +41,7 @@ export default function CategoryPage() {
   const [places, setPlaces] = useState<Place[]>([])
   const [loading, setLoading] = useState(true)
   const [sortBy, setSortBy] = useState<'rating' | 'reviews' | 'newest'>('rating')
+  const { t } = useTranslation()
 
   useEffect(() => { if (slug) fetchData() }, [slug])
 
@@ -80,9 +82,9 @@ export default function CategoryPage() {
     return (
       <div style={{ background: '#080C1A', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16 }}>
         <p style={{ fontSize: 60 }}>😕</p>
-        <p style={{ color: 'white', fontSize: 20, fontWeight: 700 }}>الفئة غير موجودة</p>
+        <p style={{ color: 'white', fontSize: 20, fontWeight: 700 }}>{t('categoryNotFound')}</p>
         <Link to="/" style={{ background: 'linear-gradient(135deg,#7C4DFF,#00E5FF)', color: 'white', padding: '12px 28px', borderRadius: 16, textDecoration: 'none', fontWeight: 700 }}>
-          العودة للرئيسية
+          {t('backHome')}
         </Link>
       </div>
     )
@@ -102,7 +104,6 @@ export default function CategoryPage() {
         .card-anim { animation: slideUp 0.5s ease both; }
       `}</style>
 
-      {/* Header */}
       <div style={{ position: 'relative', overflow: 'hidden', padding: '60px 16px 48px' }}>
         <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(135deg, #0B1020 0%, #1a0533 60%, #030812 100%)' }} />
         <div style={{ position: 'absolute', inset: 0, backgroundImage: `linear-gradient(rgba(124,77,255,0.05) 1px,transparent 1px),linear-gradient(90deg,rgba(124,77,255,0.05) 1px,transparent 1px)`, backgroundSize: '50px 50px' }} />
@@ -114,7 +115,7 @@ export default function CategoryPage() {
             <Link to="/" style={{ color: 'rgba(255,255,255,0.4)', textDecoration: 'none' }}
               onMouseEnter={e => (e.currentTarget.style.color = '#a78bfa')}
               onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.4)')}>
-              الرئيسية
+              {t('home')}
             </Link>
             <span style={{ color: 'rgba(124,77,255,0.6)' }}>✦</span>
             <span style={{ color: 'rgba(255,255,255,0.7)' }}>{category.name}</span>
@@ -133,7 +134,7 @@ export default function CategoryPage() {
                 {category.name}
               </h1>
               <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 14, margin: 0 }}>
-                <span style={{ color: '#00E5FF', fontWeight: 700 }}>{places.length}</span>&nbsp;أماكن في أقرة
+                <span style={{ color: '#00E5FF', fontWeight: 700 }}>{places.length}</span>&nbsp;{t('placesIn')}
               </p>
             </div>
           </div>
@@ -142,14 +143,13 @@ export default function CategoryPage() {
 
       <div style={{ maxWidth: 1152, margin: '0 auto', padding: '32px 16px' }}>
 
-        {/* Sort Bar */}
         {places.length > 0 && (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 28 }}>
             <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13, margin: 0 }}>
-              <span style={{ color: '#00E5FF', fontWeight: 700 }}>{sortedPlaces.length}</span> نتيجة
+              <span style={{ color: '#00E5FF', fontWeight: 700 }}>{sortedPlaces.length}</span> {t('results')}
             </p>
             <div style={{ display: 'flex', gap: 8 }}>
-              {[{ key: 'rating', label: 'الأعلى تقييماً' }, { key: 'reviews', label: 'الأكثر تقييماً' }, { key: 'newest', label: 'الأحدث' }].map(opt => (
+              {[{ key: 'rating', label: t('highestRated') }, { key: 'reviews', label: t('mostReviewed') }, { key: 'newest', label: t('newest') }].map(opt => (
                 <button key={opt.key} onClick={() => setSortBy(opt.key as any)} className="sort-btn glass"
                   style={{
                     fontSize: 12, padding: '8px 16px', borderRadius: 12,
@@ -165,14 +165,13 @@ export default function CategoryPage() {
           </div>
         )}
 
-        {/* Places Grid */}
         {sortedPlaces.length === 0 ? (
           <div className="glass" style={{ textAlign: 'center', padding: '80px 0', borderRadius: 28 }}>
             <p style={{ fontSize: 50, marginBottom: 16 }}>{category.icon}</p>
-            <p style={{ color: 'rgba(255,255,255,0.6)', fontWeight: 600, fontSize: 16, marginBottom: 8 }}>لا توجد أماكن في هذه الفئة بعد</p>
-            <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 13, marginBottom: 24 }}>كن أول من يضيف مكاناً!</p>
+            <p style={{ color: 'rgba(255,255,255,0.6)', fontWeight: 600, fontSize: 16, marginBottom: 8 }}>{t('noPlacesYet')}</p>
+            <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 13, marginBottom: 24 }}>{t('beFirst')}</p>
             <Link to="/add-place" style={{ display: 'inline-block', background: 'linear-gradient(135deg,#7C4DFF,#00E5FF)', color: 'white', fontSize: 13, padding: '12px 28px', borderRadius: 14, textDecoration: 'none', fontWeight: 700 }}>
-              + أضف مكاناً
+              {t('addPlaceBtn')}
             </Link>
           </div>
         ) : (
@@ -189,7 +188,7 @@ export default function CategoryPage() {
                       />
                       <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(8,12,26,0.8) 0%, transparent 55%)' }} />
                       {place.featured && (
-                        <span style={{ position: 'absolute', top: 10, right: 10, background: 'linear-gradient(135deg,#7C4DFF,#00E5FF)', color: 'white', fontSize: 10, padding: '4px 10px', borderRadius: 999, fontWeight: 700 }}>✦ مميز</span>
+                        <span style={{ position: 'absolute', top: 10, right: 10, background: 'linear-gradient(135deg,#7C4DFF,#00E5FF)', color: 'white', fontSize: 10, padding: '4px 10px', borderRadius: 999, fontWeight: 700 }}>✦ {t('featured')}</span>
                       )}
                       <div style={{ position: 'absolute', bottom: 10, left: 10 }}>
                         <span style={{ color: '#fbbf24', fontSize: 12, fontWeight: 700 }}>⭐ {place.rating}</span>
@@ -199,7 +198,7 @@ export default function CategoryPage() {
                       <p style={{ fontWeight: 700, color: 'white', fontSize: 14, margin: '0 0 6px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{place.name}</p>
                       <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', margin: '0 0 8px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>📍 {place.address}</p>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>{place.reviews_count} تقييم</span>
+                        <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>{place.reviews_count} {t('reviews')}</span>
                         {place.opening_hours && (
                           <span style={{ fontSize: 10, color: '#34d399', background: 'rgba(52,211,153,0.1)', padding: '2px 8px', borderRadius: 999 }}>🕐 {place.opening_hours}</span>
                         )}
