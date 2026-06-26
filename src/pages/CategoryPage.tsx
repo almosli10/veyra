@@ -41,7 +41,7 @@ export default function CategoryPage() {
   const [places, setPlaces] = useState<Place[]>([])
   const [loading, setLoading] = useState(true)
   const [sortBy, setSortBy] = useState<'rating' | 'reviews' | 'newest'>('rating')
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
 
   useEffect(() => { if (slug) fetchData() }, [slug])
 
@@ -118,7 +118,7 @@ export default function CategoryPage() {
               {t('home')}
             </Link>
             <span style={{ color: 'rgba(124,77,255,0.6)' }}>✦</span>
-            <span style={{ color: 'rgba(255,255,255,0.7)' }}>{category.name}</span>
+            {i18n.language === 'en' ? (category as any).name_en || category.name : i18n.language === 'ku' ? (category as any).name_ku || category.name : category.name}
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
@@ -131,7 +131,7 @@ export default function CategoryPage() {
               <h1 style={{ fontSize: 36, fontWeight: 900, margin: '0 0 8px',
                 background: 'linear-gradient(90deg, #fff, #a78bfa)',
                 WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-                {category.name}
+                {i18n.language === 'en' ? (category as any).name_en || category.name : i18n.language === 'ku' ? (category as any).name_ku || category.name : category.name}
               </h1>
               <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 14, margin: 0 }}>
                 <span style={{ color: '#00E5FF', fontWeight: 700 }}>{places.length}</span>&nbsp;{t('placesIn')}
