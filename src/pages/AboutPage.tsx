@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next'
 export default function AboutPage() {
   const [placesCount, setPlacesCount] = useState(0)
   const [categoriesCount, setCategoriesCount] = useState(0)
-  const { t, i18n } = useTranslation()
+  const { i18n } = useTranslation()
 
   useEffect(() => {
     fetchStats()
