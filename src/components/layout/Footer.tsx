@@ -3,6 +3,15 @@ import { useTranslation } from 'react-i18next'
 
 export default function Footer() {
   const { t } = useTranslation()
+
+  const categories = [
+    [t('restaurants'), '🍽️', 'restaurants'],
+    [t('cafes'), '☕', 'cafes'],
+    [t('hotels'), '🏨', 'hotels'],
+    [t('tourism'), '🏔️', 'tourism'],
+    [t('markets'), '🛒', 'markets'],
+  ]
+
   return (
     <footer style={{ background:'linear-gradient(180deg,#080C1A 0%,#0B1020 100%)', borderTop:'1px solid rgba(255,255,255,0.06)', paddingTop:56, paddingBottom:28, position:'relative', overflow:'hidden' }}>
       <style>{`
@@ -32,8 +41,10 @@ export default function Footer() {
             <p style={{ color:'white', fontSize:14, fontWeight:700, marginBottom:16, display:'flex', alignItems:'center', gap:8 }}>
               <span style={{ width:3, height:16, background:'linear-gradient(180deg,#7C4DFF,#00E5FF)', borderRadius:999, display:'inline-block' }} />{t('categories')}
             </p>
-            {[['مطاعم','🍽️','restaurants'],['كافيهات','☕','cafes'],['فنادق','🏨','hotels'],['سياحة','🏔️','tourism'],['أسواق','🛒','markets'],['صيدليات','💊','pharmacies']].map(([name,icon,slug]) => (
-              <Link key={slug} to={`/${slug}`} className="footer-link"><span style={{ marginLeft:6 }}>{icon}</span>{name}</Link>
+            {categories.map(([name, icon, slug]) => (
+              <Link key={slug} to={`/${slug}`} className="footer-link">
+                <span style={{ marginLeft:6 }}>{icon}</span>{name}
+              </Link>
             ))}
           </div>
           <div>
