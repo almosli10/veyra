@@ -236,7 +236,7 @@ export default function HomePage() {
                         onMouseEnter={e => (e.currentTarget as HTMLDivElement).style.background='rgba(124,77,255,0.15)'}
                         onMouseLeave={e => (e.currentTarget as HTMLDivElement).style.background='rgba(255,255,255,0.04)'}>
                         <span style={{ fontSize:28, display:'block', marginBottom:8 }}>{cat.icon}</span>
-                        <p style={{ fontSize:11, fontWeight:600, color:'rgba(255,255,255,0.7)', margin:0 }}>{cat.name}</p>
+                        {i18n.language === 'en' ? (cat as any).name_en || cat.name : i18n.language === 'ku' ? (cat as any).name_ku || cat.name : cat.name}
                       </div>
                     </TiltCard>
                   </Link>
